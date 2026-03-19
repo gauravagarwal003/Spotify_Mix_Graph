@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Mix Graph</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <aside id="sidebar">
+            <header>
+                <h1>Spotify Transitions</h1>
+                <p>Map your track journeys.</p>
+            </header>
+            
+            <div id="spotify-auth" class="panel">
+                <h2>Connect Spotify</h2>
+                <p style="font-size: 0.85rem; color: var(--text-sec); margin-bottom: 15px;">
+                    To search for real Spotify tracks and artwork, connect your account. 
+                </p>
+                <button id="login-btn" class="btn-green">Login to Spotify</button>
+            </div>
+
+            <div class="panel" id="main-panel" style="display:none;">
+                <h2>Add Transition</h2>
+                <form id="add-transition-form">
+                    
+                    <div class="input-group">
+                        <label>Track 1 (From)</label>
+                        <input type="text" id="node1-search" placeholder="Search track name..." autocomplete="off" required>
+                        <div id="node1-results" class="autocomplete-results"></div>
+                        <input type="hidden" id="node1-data">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Track 2 (To)</label>
+                        <input type="text" id="node2-search" placeholder="Search track name..." autocomplete="off" required>
+                        <div id="node2-results" class="autocomplete-results"></div>
+                        <input type="hidden" id="node2-data">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Transition Screenshot (Optional)</label>
+                        <input type="file" id="screenshot-file" accept="image/*">
+                        <div class="file-preview" id="file-preview-name">No file selected</div>
+                    </div>
+
+                    <button type="submit" class="btn-green">Add Transition</button>
+                    <button type="button" class="btn-outline" id="export-btn" style="margin-top: 10px;">Export Graph Data</button>
+                </form>
+            </div>
+            
+            <div class="panel" id="details-panel" style="display:none;">
+                <div id="details-content"></div>
+            </div>
+        </aside>
+        
+        <main id="graph-container"></main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
