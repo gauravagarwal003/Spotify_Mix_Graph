@@ -8,16 +8,56 @@ let spotifyAccessToken = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     checkSpotifyAuth();
+    loadGHSettings();
 
     let graphData = { nodes: [], edges: [] };
-    
-    try {
-        const response = await fetch('./data.json?v=' + Date.now());
-        if (response.ok) {
-            graphData = await response.json();
+    let loadedFromGitHub = false;
+
+    // 1. Try to fetch the latest from the GitHub API directly to bypass GitHub Pages limits
+    const ghOwner = localStorage.getItem('gh_owner');
+    const ghRepo = localStorage.getItem('gh_repo');
+    const ghToken = localStorage.getItem('gh_token');
+
+    if (ghOwner && ghRepo && ghToken) {
+        try {
+            const getRes = await fetch(`https://api.github.com/repos/${ghOwner}/${ghRepo}/contents/data.json`, {
+                headers: { 'Authorization': `token ${ghToken}` }
+            });
+            if (getRes.ok) {
+                const getBuf = await getRes.json();
+                // GitHub API returns content as base64
+                const contentStr = decodeURIComponent(escape(atob(getBuf.content)));
+                graphData = JSON.parse(contentStr);
+                loadedFromGitHub = true;
+                
+                // Update local storage so it has the absolute freshest data too
+                localStorage.setItem('spotify_mix_graph_data', contentStr);
+            }
+        } catch (e) {
+            console.error("Could not fetch remote data.json from GitHub API.", e);
         }
-    } catch (e) {
-        console.warn("Could not load data.json.");
+    }
+
+    // 2. If it couldn't fetch from GitHub, try Local Storage
+    if (!loadedFromGitHub) {
+        const savedLocal = localStorage.getItem('spotify_mix_graph_data');
+        if (savedLocal) {
+            try {
+                graphData = JSON.parse(savedLocal);
+            } catch (e) {
+                console.error("Could not parse locally saved graph data", e);
+            }
+        } else {
+            // 3. Otherwise, fetch from the main data.json file statically
+            try {
+                const response = await fetch('./data.json?v=' + Date.now());
+                if (response.ok) {
+                    graphData = await response.json();
+                }
+            } catch (e) {
+                console.warn("Could not load data.json.");
+            }
+        }
     }
 
     initGraph(graphData);
@@ -25,6 +65,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupAutocomplete('node1');
     setupAutocomplete('node2');
 });
+
+function saveGraphToLocal() {
+    if (!cy) return;
+    const elements = cy.json().elements;
+    const dataToSave = {
+        nodes: elements.nodes || [],
+        edges: elements.edges || []
+    };
+    localStorage.setItem('spotify_mix_graph_data', JSON.stringify(dataToSave));
+}
 
 function initGraph(data) {
     cy = cytoscape({
@@ -177,6 +227,9 @@ function setupEvents() {
             
             cy.layout({ name: 'cose', animate: true, nodeRepulsion: 400000, idealEdgeLength: 150 }).run();
             
+            // Save to browser storage so it persists on refresh
+            saveGraphToLocal();
+            
             // Reset form
             document.getElementById('node1-search').value = '';
             document.getElementById('node2-search').value = '';
@@ -190,18 +243,78 @@ function setupEvents() {
         }
     });
 
-    document.getElementById('export-btn').addEventListener('click', () => {
+    document.getElementById('export-btn').addEventListener('click', async () => {
         const json = cy.json();
         const elements = json.elements;
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(elements, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", "data.json");
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-        alert('Data downloaded! Commit the new data.json to your github pages repository.');
+        
+        const ghOwner = localStorage.getItem('gh_owner');
+        const ghRepo = localStorage.getItem('gh_repo');
+        const ghToken = localStorage.getItem('gh_token');
+
+        if (!ghOwner || !ghRepo || !ghToken) {
+            alert('Please fill out the Cloud Sync Settings in the sidebar before syncing to GitHub.');
+            return;
+        }
+
+        document.getElementById('export-btn').innerText = 'Syncing...';
+        
+        try {
+            const path = 'data.json';
+            const url = `https://api.github.com/repos/${ghOwner}/${ghRepo}/contents/${path}`;
+
+            // 1. Get file SHA (required by GitHub API to update a file)
+            let sha = null;
+            const getRes = await fetch(url, { headers: { 'Authorization': `token ${ghToken}` } });
+            if (getRes.ok) {
+                const getBuf = await getRes.json();
+                sha = getBuf.sha;
+            }
+
+            // 2. PUT new content
+            const contentStr = JSON.stringify(elements, null, 2);
+            const encodedContent = btoa(unescape(encodeURIComponent(contentStr)));
+
+            const payload = {
+                message: "Update mix graph via App Sync",
+                content: encodedContent,
+            };
+            if (sha) payload.sha = sha;
+
+            const putRes = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${ghToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (putRes.ok) {
+                alert('Successfully synced to GitHub! You can now view changes on your other devices.');
+            } else {
+                const err = await putRes.json();
+                alert(`Error syncing: ${err.message}`);
+            }
+        } catch (e) {
+            console.error("Sync error:", e);
+            alert("Failed to sync due to a network error.");
+        } finally {
+            document.getElementById('export-btn').innerText = 'Sync Graph to Cloud';
+        }
     });
+
+    document.getElementById('save-gh-settings').addEventListener('click', () => {
+        localStorage.setItem('gh_owner', document.getElementById('gh-owner').value.trim());
+        localStorage.setItem('gh_repo', document.getElementById('gh-repo').value.trim());
+        localStorage.setItem('gh_token', document.getElementById('gh-token').value.trim());
+        alert('Cloud sync settings saved to this browser.');
+    });
+}
+
+function loadGHSettings() {
+    document.getElementById('gh-owner').value = localStorage.getItem('gh_owner') || '';
+    document.getElementById('gh-repo').value = localStorage.getItem('gh_repo') || '';
+    document.getElementById('gh-token').value = localStorage.getItem('gh_token') || '';
 }
 
 function setupAutocomplete(nodeId) {
@@ -222,7 +335,7 @@ function setupAutocomplete(nodeId) {
             if (!spotifyAccessToken) return;
 
             try {
-                const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=10`, {
+                const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=20`, {
                     headers: {
                         'Authorization': `Bearer ${spotifyAccessToken}`
                     }
@@ -248,6 +361,11 @@ function setupAutocomplete(nodeId) {
                         
                         const coverUrl = track.album.images.length > 0 ? track.album.images[track.album.images.length - 1].url : '';
                         const artistName = track.artists.map(a => a.name).join(', ');
+                        
+                        // Format duration
+                        const minutes = Math.floor(track.duration_ms / 60000);
+                        const seconds = ((track.duration_ms % 60000) / 1000).toFixed(0);
+                        const formattedDuration = minutes + ":" + (seconds < 10 ? '0' : '') + seconds;
 
                         div.innerHTML = `
                             <img src="${coverUrl}" alt="Cover">
@@ -255,6 +373,7 @@ function setupAutocomplete(nodeId) {
                                 <span class="autocomplete-name">${track.name}</span>
                                 <span class="autocomplete-artist">${artistName}</span>
                             </div>
+                            <div class="autocomplete-duration">${formattedDuration}</div>
                         `;
                         div.addEventListener('click', () => {
                             searchInput.value = `${track.name} - ${artistName}`;

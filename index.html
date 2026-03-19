@@ -48,8 +48,30 @@
                     </div>
 
                     <button type="submit" class="btn-green">Add Transition</button>
-                    <button type="button" class="btn-outline" id="export-btn" style="margin-top: 10px;">Export Graph Data</button>
+                    <button type="button" class="btn-outline" id="export-btn" style="margin-top: 10px;">Sync Graph to Cloud</button>
                 </form>
+            </div>
+
+            <div class="panel" id="settings-panel">
+                <details>
+                    <summary style="cursor: pointer; font-weight: bold; font-size: 0.95rem;">Cloud Sync Settings</summary>
+                    <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 12px;">
+                        <p style="font-size: 0.75rem; color: var(--text-sec);">Save to GitHub API directly so you can access your graph from any device.</p>
+                        <div class="input-group">
+                            <label>GitHub Username</label>
+                            <input type="text" id="gh-owner" placeholder="e.g. gaurav">
+                        </div>
+                        <div class="input-group">
+                            <label>Repository Name</label>
+                            <input type="text" id="gh-repo" placeholder="e.g. spotify-mix-graph">
+                        </div>
+                        <div class="input-group">
+                            <label>Personal Access Token (PAT)</label>
+                            <input type="password" id="gh-token" placeholder="ghp_...">
+                        </div>
+                        <button type="button" id="save-gh-settings" class="btn-outline" style="font-size: 0.8rem; padding: 8px;">Save Setup Local</button>
+                    </div>
+                </details>
             </div>
             
             <div class="panel" id="details-panel" style="display:none;">
