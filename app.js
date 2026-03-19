@@ -293,7 +293,15 @@ function setupFirebase() {
 
   firebase.auth().onAuthStateChanged((user) => {
     if (user) {
-      mainPanel.style.display = "block";
+      if (
+        spotifyAccessToken &&
+        spotifyAccessToken !== "undefined" &&
+        spotifyAccessToken !== "null"
+      ) {
+        mainPanel.style.display = "block";
+      } else {
+        mainPanel.style.display = "none";
+      }
       loginForm.style.display = "none";
       loggedInUi.style.display = "block";
     } else {
@@ -342,7 +350,7 @@ function setupAutocomplete(nodeId) {
       // Check if token exists, fallback to localStorage if global var is empty
       const tokenToUse =
         spotifyAccessToken || localStorage.getItem("spotify_access_token");
-      if (!tokenToUse || tokenToUse === "undefined") {
+      if (!tokenToUse || tokenToUse === "undefined" || tokenToUse === "null") {
         console.warn("No spotify token available.");
         return;
       }
@@ -357,12 +365,18 @@ function setupAutocomplete(nodeId) {
           },
         );
 
-        if (!response.ok) {
-          // Token expired or invalid
-          console.error("Spotify API error, clearing token.");
+        if (response.status === 401) {
+          // Token expired genuinely
+          console.error("Spotify token expired, clearing token.");
           localStorage.removeItem("spotify_access_token");
           spotifyAccessToken = null;
           window.location.reload();
+          return;
+        } else if (!response.ok) {
+          const errData = await response.json();
+          console.error("Spotify API error:", errData);
+          resultsDiv.innerHTML = `<div style="padding:10px; color:#f44336; font-size:12px;">Error: ${errData.error?.message || "Verify your Spotify Developer App settings (are you a whitelisted user?)."}</div>`;
+          resultsDiv.style.display = "block";
           return;
         }
 
@@ -458,6 +472,12 @@ async function checkSpotifyAuth() {
       if (data.access_token) {
         localStorage.setItem("spotify_access_token", data.access_token);
         spotifyAccessToken = data.access_token;
+      } else {
+        console.error("Token exchange failed: ", data);
+        alert(
+          "Spotify Login Failed: " +
+            (data.error_description || data.error || "Unknown error"),
+        );
       }
       // Clear URL
       window.history.replaceState(null, null, window.location.pathname);
