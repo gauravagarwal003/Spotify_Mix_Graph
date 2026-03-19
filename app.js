@@ -7,7 +7,8 @@ const SPOTIFY_CLIENT_ID = '03f085f9e7054e1abb2be9a2e89a8892'; // Using a placeho
 let spotifyAccessToken = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    checkSpotifyAuth();
+    // Wait for auth to complete BEFORE doing anything else
+    await checkSpotifyAuth();
     loadGHSettings();
 
     let graphData = { nodes: [], edges: [] };
@@ -332,18 +333,24 @@ function setupAutocomplete(nodeId) {
         }
 
         debounceTimer = setTimeout(async () => {
-            if (!spotifyAccessToken) return;
+            // Check if token exists, fallback to localStorage if global var is empty
+            const tokenToUse = spotifyAccessToken || localStorage.getItem('spotify_access_token');
+            if (!tokenToUse || tokenToUse === 'undefined') {
+                console.warn("No spotify token available.");
+                return;
+            }
 
             try {
                 const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=20`, {
                     headers: {
-                        'Authorization': `Bearer ${spotifyAccessToken}`
+                        'Authorization': `Bearer ${tokenToUse}`
                     }
                 });
                 
                 if (response.status === 401) {
                     // Token expired
                     localStorage.removeItem('spotify_access_token');
+                    spotifyAccessToken = null;
                     window.location.reload();
                     return;
                 }
