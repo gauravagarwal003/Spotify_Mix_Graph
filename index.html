@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spotify Mix Graph</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Graph library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    <!-- Firebase libraries -->
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-database-compat.js"></script>
 </head>
 <body>
     <div id="app">
@@ -48,30 +53,29 @@
                     </div>
 
                     <button type="submit" class="btn-green">Add Transition</button>
-                    <button type="button" class="btn-outline" id="export-btn" style="margin-top: 10px;">Sync Graph to Cloud</button>
+                    <!-- <button type="button" class="btn-outline" id="export-btn" style="margin-top: 10px;">Sync Graph to Cloud</button> -->
                 </form>
             </div>
 
-            <div class="panel" id="settings-panel">
-                <details>
-                    <summary style="cursor: pointer; font-weight: bold; font-size: 0.95rem;">Cloud Sync Settings</summary>
-                    <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 12px;">
-                        <p style="font-size: 0.75rem; color: var(--text-sec);">Save to GitHub API directly so you can access your graph from any device.</p>
-                        <div class="input-group">
-                            <label>GitHub Username</label>
-                            <input type="text" id="gh-owner" placeholder="e.g. gaurav">
-                        </div>
-                        <div class="input-group">
-                            <label>Repository Name</label>
-                            <input type="text" id="gh-repo" placeholder="e.g. spotify-mix-graph">
-                        </div>
-                        <div class="input-group">
-                            <label>Personal Access Token (PAT)</label>
-                            <input type="password" id="gh-token" placeholder="ghp_...">
-                        </div>
-                        <button type="button" id="save-gh-settings" class="btn-outline" style="font-size: 0.8rem; padding: 8px;">Save Setup Local</button>
-                    </div>
-                </details>
+            <div class="panel" id="admin-panel">
+                <h2>Admin Login</h2>
+                <div id="login-form-container">
+                    <p style="font-size: 0.8rem; color: var(--text-sec); margin-bottom: 15px;">Login to edit. Anyone else can only view the graph.</p>
+                    <button type="button" id="google-login-btn" class="btn-green" style="background: #ffffff; color: #000; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px; padding: 10px;">
+                        <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M17.64 9.2045c0-.6381-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9086c1.7018-1.5668 2.6836-3.874 2.6836-6.615z" fill="#4285F4"/>
+                            <path d="M9 18c2.43 0 4.4673-.806 5.9564-2.1805l-2.9086-2.2581c-.8059.54-1.8368.859-3.0478.859-2.344 0-4.3282-1.5831-5.036-3.7104H.9574v2.3318C2.4382 15.9832 5.4818 18 9 18z" fill="#34A853"/>
+                            <path d="M3.964 10.71c-.18-.54-.2822-1.1168-.2822-1.71s.1023-1.17.2823-1.71V4.9582H.9574C.3477 6.1363 0 7.5136 0 9s.3477 2.8636.9574 4.0418l3.0066-2.3318z" fill="#FBBC05"/>
+                            <path d="M9 3.5795c1.3214 0 2.5077.4541 3.4405 1.346L14.9086.9575C13.4632-.3845 11.426 0 9 0 5.4818 0 2.4382 2.0168.9574 4.9582l3.0066 2.3318C4.6718 5.1631 6.656 3.5795 9 3.5795z" fill="#EA4335"/>
+                        </svg>
+                        Sign in with Google
+                    </button>
+                    <p id="auth-error" style="color: #f44336; font-size: 0.8rem; margin-top: 10px; display: none;"></p>
+                </div>
+                <div id="logged-in-container" style="display: none;">
+                    <p style="font-size: 0.85rem; color: var(--spotify-green); font-weight: bold;">✓ Logged in. You can edit the graph. Changes auto-save.</p>
+                    <button type="button" id="fb-logout-btn" class="btn-outline" style="margin-top: 10px; padding: 10px;">Logout</button>
+                </div>
             </div>
             
             <div class="panel" id="details-panel" style="display:none;">

@@ -79,7 +79,7 @@ header p {
     font-weight: 600;
 }
 
-input[type="text"], input[type="password"] {
+input[type="text"], input[type="password"], input[type="email"] {
     background: var(--spotify-light);
     border: 1px solid transparent;
     border-radius: 4px;
@@ -90,7 +90,7 @@ input[type="text"], input[type="password"] {
     transition: all 0.2s;
 }
 
-input[type="text"]:focus, input[type="password"]:focus {
+input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus {
     border-color: #555;
     background: #333;
 }
@@ -230,4 +230,9 @@ button:active {
 
 #details-content strong {
     color: var(--text-primary);
+}
+
+/* Hidden class for forms */
+.hidden {
+    display: none !important;
 }

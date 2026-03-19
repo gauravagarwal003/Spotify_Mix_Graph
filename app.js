@@ -6,65 +6,40 @@ let currentScreenshotBase64 = null;
 const SPOTIFY_CLIENT_ID = '03f085f9e7054e1abb2be9a2e89a8892'; // Using a placeholder, change to yours
 let spotifyAccessToken = null;
 
+// FIREBASE CONFIGURATION
+// Replace this with your own Firebase project config!
+const firebaseConfig = {
+  apiKey: "AIzaSyBlxSvA3ugwuF0KrNJQBGKcC0fTNtHKpCw",
+  authDomain: "spotify-mix-graph.firebaseapp.com",
+  databaseURL: "https://spotify-mix-graph-default-rtdb.firebaseio.com",
+  projectId: "spotify-mix-graph",
+  storageBucket: "spotify-mix-graph.firebasestorage.app",
+  messagingSenderId: "29028758846",
+  appId: "1:29028758846:web:832280a8f2d4b04adee86f",
+  measurementId: "G-9WECPTZT4W"
+};
+// Initialize Firebase
+if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+    firebase.initializeApp(firebaseConfig);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // Wait for auth to complete BEFORE doing anything else
     await checkSpotifyAuth();
-    loadGHSettings();
-
+    
+    // Instead of GitHub logic, we now just start empty and wait for Firebase Realtime DB.
     let graphData = { nodes: [], edges: [] };
-    let loadedFromGitHub = false;
-
-    // 1. Try to fetch the latest from the GitHub API directly to bypass GitHub Pages limits
-    const ghOwner = localStorage.getItem('gh_owner');
-    const ghRepo = localStorage.getItem('gh_repo');
-    const ghToken = localStorage.getItem('gh_token');
-
-    if (ghOwner && ghRepo && ghToken) {
-        try {
-            const getRes = await fetch(`https://api.github.com/repos/${ghOwner}/${ghRepo}/contents/data.json`, {
-                headers: { 'Authorization': `token ${ghToken}` }
-            });
-            if (getRes.ok) {
-                const getBuf = await getRes.json();
-                // GitHub API returns content as base64
-                const contentStr = decodeURIComponent(escape(atob(getBuf.content)));
-                graphData = JSON.parse(contentStr);
-                loadedFromGitHub = true;
-                
-                // Update local storage so it has the absolute freshest data too
-                localStorage.setItem('spotify_mix_graph_data', contentStr);
-            }
-        } catch (e) {
-            console.error("Could not fetch remote data.json from GitHub API.", e);
-        }
-    }
-
-    // 2. If it couldn't fetch from GitHub, try Local Storage
-    if (!loadedFromGitHub) {
-        const savedLocal = localStorage.getItem('spotify_mix_graph_data');
-        if (savedLocal) {
-            try {
-                graphData = JSON.parse(savedLocal);
-            } catch (e) {
-                console.error("Could not parse locally saved graph data", e);
-            }
-        } else {
-            // 3. Otherwise, fetch from the main data.json file statically
-            try {
-                const response = await fetch('./data.json?v=' + Date.now());
-                if (response.ok) {
-                    graphData = await response.json();
-                }
-            } catch (e) {
-                console.warn("Could not load data.json.");
-            }
-        }
-    }
-
     initGraph(graphData);
+    
     setupEvents();
     setupAutocomplete('node1');
     setupAutocomplete('node2');
+
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        setupFirebase();
+    } else {
+        console.warn("Firebase is not configured yet. Make sure to put your real config in app.js!");
+    }
 });
 
 function saveGraphToLocal() {
@@ -228,8 +203,8 @@ function setupEvents() {
             
             cy.layout({ name: 'cose', animate: true, nodeRepulsion: 400000, idealEdgeLength: 150 }).run();
             
-            // Save to browser storage so it persists on refresh
-            saveGraphToLocal();
+            // Auto-save to Firebase
+            saveGraphToFirebase();
             
             // Reset form
             document.getElementById('node1-search').value = '';
@@ -243,79 +218,69 @@ function setupEvents() {
             alert("This transition already exists!");
         }
     });
+}
 
-    document.getElementById('export-btn').addEventListener('click', async () => {
-        const json = cy.json();
-        const elements = json.elements;
-        
-        const ghOwner = localStorage.getItem('gh_owner');
-        const ghRepo = localStorage.getItem('gh_repo');
-        const ghToken = localStorage.getItem('gh_token');
+// ========================
+// FIREBASE & DATA LOGIC 
+// ========================
 
-        if (!ghOwner || !ghRepo || !ghToken) {
-            alert('Please fill out the Cloud Sync Settings in the sidebar before syncing to GitHub.');
-            return;
-        }
-
-        document.getElementById('export-btn').innerText = 'Syncing...';
-        
-        try {
-            const path = 'data.json';
-            const url = `https://api.github.com/repos/${ghOwner}/${ghRepo}/contents/${path}`;
-
-            // 1. Get file SHA (required by GitHub API to update a file)
-            let sha = null;
-            const getRes = await fetch(url, { headers: { 'Authorization': `token ${ghToken}` } });
-            if (getRes.ok) {
-                const getBuf = await getRes.json();
-                sha = getBuf.sha;
-            }
-
-            // 2. PUT new content
-            const contentStr = JSON.stringify(elements, null, 2);
-            const encodedContent = btoa(unescape(encodeURIComponent(contentStr)));
-
-            const payload = {
-                message: "Update mix graph via App Sync",
-                content: encodedContent,
-            };
-            if (sha) payload.sha = sha;
-
-            const putRes = await fetch(url, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `token ${ghToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (putRes.ok) {
-                alert('Successfully synced to GitHub! You can now view changes on your other devices.');
-            } else {
-                const err = await putRes.json();
-                alert(`Error syncing: ${err.message}`);
-            }
-        } catch (e) {
-            console.error("Sync error:", e);
-            alert("Failed to sync due to a network error.");
-        } finally {
-            document.getElementById('export-btn').innerText = 'Sync Graph to Cloud';
-        }
-    });
-
-    document.getElementById('save-gh-settings').addEventListener('click', () => {
-        localStorage.setItem('gh_owner', document.getElementById('gh-owner').value.trim());
-        localStorage.setItem('gh_repo', document.getElementById('gh-repo').value.trim());
-        localStorage.setItem('gh_token', document.getElementById('gh-token').value.trim());
-        alert('Cloud sync settings saved to this browser.');
+function saveGraphToFirebase() {
+    if (!cy || typeof firebase === 'undefined' || firebase.apps.length === 0) return;
+    const elements = cy.json().elements;
+    const dataToSave = {
+        nodes: elements.nodes || [],
+        edges: elements.edges || []
+    };
+    firebase.database().ref('graph/data').set(dataToSave).catch(err => {
+        console.error("Save to Firebase failed:", err);
     });
 }
 
-function loadGHSettings() {
-    document.getElementById('gh-owner').value = localStorage.getItem('gh_owner') || '';
-    document.getElementById('gh-repo').value = localStorage.getItem('gh_repo') || '';
-    document.getElementById('gh-token').value = localStorage.getItem('gh_token') || '';
+function setupFirebase() {
+    // 1. Listen for Live Data
+    firebase.database().ref('graph/data').on('value', (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            cy.elements().remove();
+            if (data.nodes) cy.add(data.nodes.map(n => ({ group: 'nodes', data: n.data })));
+            if (data.edges) cy.add(data.edges.map(e => ({ group: 'edges', data: e.data })));
+            cy.layout({ name: 'cose', animate: true, nodeRepulsion: 400000, idealEdgeLength: 150 }).run();
+        }
+    });
+
+    // 2. Auth State UI
+    const mainPanel = document.getElementById('main-panel');
+    const loginForm = document.getElementById('login-form-container');
+    const loggedInUi = document.getElementById('logged-in-container');
+
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            mainPanel.style.display = 'block';
+            loginForm.style.display = 'none';
+            loggedInUi.style.display = 'block';
+        } else {
+            mainPanel.style.display = 'none';
+            loginForm.style.display = 'block';
+            loggedInUi.style.display = 'none';
+        }
+    });
+
+    // 3. Google Login
+    document.getElementById('google-login-btn').addEventListener('click', () => {
+        const errTxt = document.getElementById('auth-error');
+        errTxt.style.display = 'none';
+        
+        const provider = new firebase.auth.GoogleAuthProvider();
+        firebase.auth().signInWithPopup(provider).catch(error => {
+            errTxt.innerText = error.message;
+            errTxt.style.display = 'block';
+        });
+    });
+
+    // 4. Logout
+    document.getElementById('fb-logout-btn').addEventListener('click', () => {
+        firebase.auth().signOut();
+    });
 }
 
 function setupAutocomplete(nodeId) {
