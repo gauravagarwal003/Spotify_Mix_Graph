@@ -2,6 +2,7 @@ function setupAutocomplete(nodeId) {
   const searchInput = document.getElementById(`${nodeId}-search`);
   const resultsDiv = document.getElementById(`${nodeId}-results`);
   const hiddenData = document.getElementById(`${nodeId}-data`);
+  const SPOTIFY_SEARCH_LIMIT = 15;
   
   let localDebounceTimer = null;
   let currentFetchQuery = "";
@@ -26,14 +27,28 @@ function setupAutocomplete(nodeId) {
       }
 
       try {
-        const response = await fetch(
-          `https://api.spotify.com/v1/search?type=track&limit=15&q=${encodeURIComponent(query)}`,
-          {
+        const makeSearchUrl = (q, includeLimit = true) => {
+          const url = new URL("https://api.spotify.com/v1/search");
+          url.searchParams.set("type", "track");
+          url.searchParams.set("q", q);
+          if (includeLimit) {
+            const safeLimit = Math.max(
+              1,
+              Math.min(50, Number.parseInt(SPOTIFY_SEARCH_LIMIT, 10) || 15),
+            );
+            url.searchParams.set("limit", String(safeLimit));
+          }
+          return url.toString();
+        };
+
+        const fetchSpotifySearch = (includeLimit = true) =>
+          fetch(makeSearchUrl(query, includeLimit), {
             headers: {
               Authorization: `Bearer ${tokenToUse}`,
             },
-          },
-        );
+          });
+
+        let response = await fetchSpotifySearch(true);
 
         if (currentFetchQuery !== query) return;
 
@@ -49,12 +64,87 @@ function setupAutocomplete(nodeId) {
           return;
         } else if (!response.ok) {
           let errMessage = "Verify your Spotify Developer App settings.";
+          let errData = null;
           try {
-             const errData = await response.json();
-             if (errData && errData.error && errData.error.message) {
-                 errMessage = errData.error.message;
-             }
-          } catch(e) {}
+            errData = await response.json();
+            if (errData && errData.error && errData.error.message) {
+              errMessage = errData.error.message;
+            }
+          } catch (e) {}
+
+          // Retry once without the limit parameter for intermittent API validation issues.
+          if (errMessage === "Invalid limit") {
+            response = await fetchSpotifySearch(false);
+            if (response.ok) {
+              const data = await response.json();
+              if (currentFetchQuery !== query) return;
+
+              const tracks =
+                data.tracks && data.tracks.items ? data.tracks.items : [];
+
+              resultsDiv.innerHTML = "";
+              if (tracks.length === 0) {
+                resultsDiv.innerHTML =
+                  '<div style="padding:10px; color:#b3b3b3; font-size:12px;">No results found</div>';
+              } else {
+                tracks.forEach((track) => {
+                  const div = document.createElement("div");
+                  div.className = "autocomplete-item";
+
+                  const coverUrl =
+                    track.album &&
+                    track.album.images &&
+                    track.album.images.length > 0
+                      ? track.album.images[track.album.images.length - 1].url
+                      : "";
+
+                  const artistName = track.artists
+                    ? track.artists.map((a) => a.name).join(", ")
+                    : "Unknown Artist";
+
+                  const minutes = Math.floor(track.duration_ms / 60000);
+                  const seconds = ((track.duration_ms % 60000) / 1000).toFixed(0);
+                  const formattedDuration =
+                    minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+
+                  div.innerHTML = `
+                            <img src="${coverUrl}" alt="Cover">
+                            <div class="autocomplete-info">
+                                <span class="autocomplete-name">${track.name}</span>
+                                <span class="autocomplete-artist">${artistName}</span>
+                            </div>
+                            <div class="autocomplete-duration">${formattedDuration}</div>
+                        `;
+                  div.addEventListener("click", () => {
+                    searchInput.value = `${track.name} - ${artistName}`;
+                    hiddenData.value = JSON.stringify({
+                      id: track.id,
+                      name: track.name,
+                      artist: artistName,
+                      cover:
+                        track.album &&
+                        track.album.images &&
+                        track.album.images.length > 0
+                          ? track.album.images[0].url
+                          : "",
+                    });
+                    resultsDiv.style.display = "none";
+                  });
+                  resultsDiv.appendChild(div);
+                });
+              }
+              resultsDiv.style.display = "block";
+              return;
+            }
+
+            try {
+              errData = await response.json();
+              if (errData && errData.error && errData.error.message) {
+                errMessage = errData.error.message;
+              }
+            } catch (e) {}
+          }
+
           console.error("Spotify API error:", errMessage);
           resultsDiv.innerHTML = `<div style="padding:10px; color:#f44336; font-size:12px;">Error: ${errMessage}</div>`;
           resultsDiv.style.display = "block";
