@@ -151,10 +151,12 @@ input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focu
     text-overflow: ellipsis;
 }
 
-.autocomplete-duration {
+.autocomplete-meta {
     font-size: 0.75rem;
     color: var(--text-sec);
     white-space: nowrap;
+    margin-top: 2px;
+    opacity: 0.95;
 }
 
 input[type="file"] {

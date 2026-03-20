@@ -1,6 +1,8 @@
 let cy;
 let debounceTimer;
 let currentScreenshotBase64 = null;
+const SONG_TRANSITION_TO_REMOVE = { from: "circus", to: "212" };
+let isApplyingFirebaseSnapshot = false;
 
 // Before deploying, create a Spotify Developer App and put its Client ID here
 const SPOTIFY_CLIENT_ID = "03f085f9e7054e1abb2be9a2e89a8892"; // Using a placeholder, change to yours
@@ -54,6 +56,122 @@ function saveGraphToLocal() {
   localStorage.setItem("spotify_mix_graph_data", JSON.stringify(dataToSave));
 }
 
+function normalizeSongText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\[[^\]]*\]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function toDurationSeconds(durationMs) {
+  const raw = Number(durationMs);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.round(raw / 1000);
+}
+
+function buildCanonicalSongKey(trackLike) {
+  const name = normalizeSongText(trackLike?.name);
+  const artist = normalizeSongText(trackLike?.artist);
+  const durationSeconds = toDurationSeconds(
+    trackLike?.durationMs ?? trackLike?.duration_ms,
+  );
+  if (!name || !artist || !durationSeconds) return "";
+  return `${name}|${artist}|${durationSeconds}`;
+}
+
+function getNodeCanonicalSongKey(nodeData) {
+  return nodeData?.canonicalSongKey || buildCanonicalSongKey(nodeData);
+}
+
+function findExistingNodeIdForTrack(trackLike) {
+  if (!cy) return trackLike?.id;
+  if (trackLike?.id && !cy.getElementById(trackLike.id).empty()) {
+    return trackLike.id;
+  }
+
+  const targetKey = buildCanonicalSongKey(trackLike);
+  if (!targetKey) return trackLike?.id;
+
+  let matchedNodeId = null;
+  cy.nodes().forEach((node) => {
+    if (matchedNodeId) return;
+    if (getNodeCanonicalSongKey(node.data()) === targetKey) {
+      matchedNodeId = node.id();
+    }
+  });
+
+  return matchedNodeId || trackLike?.id;
+}
+
+function applyGraphQualityFixes() {
+  if (!cy) return false;
+
+  let changed = false;
+
+  cy.nodes().forEach((node) => {
+    const nodeData = node.data();
+    const key = getNodeCanonicalSongKey(nodeData);
+    if (key && nodeData.canonicalSongKey !== key) {
+      node.data("canonicalSongKey", key);
+      changed = true;
+    }
+    if (nodeData.durationMs == null && nodeData.duration_ms != null) {
+      node.data("durationMs", nodeData.duration_ms);
+      changed = true;
+    }
+  });
+
+  cy.edges().forEach((edge) => {
+    const sourceNode = cy.getElementById(edge.data("source"));
+    const targetNode = cy.getElementById(edge.data("target"));
+    if (!sourceNode.empty() && !targetNode.empty()) {
+      const sourceName = normalizeSongText(sourceNode.data("name"));
+      const targetName = normalizeSongText(targetNode.data("name"));
+      if (
+        sourceName === SONG_TRANSITION_TO_REMOVE.from &&
+        targetName === SONG_TRANSITION_TO_REMOVE.to
+      ) {
+        edge.remove();
+        changed = true;
+        return;
+      }
+    }
+
+  });
+
+  cy.nodes().forEach((node) => {
+    const nextCount = node.connectedEdges().length;
+    if (node.data("connectionCount") !== nextCount) {
+      node.data("connectionCount", nextCount);
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
+function getConnectionCountForTrack(trackLike) {
+  if (!cy) return 0;
+
+  const byId = trackLike?.id ? cy.getElementById(trackLike.id) : cy.collection();
+  if (trackLike?.id && !byId.empty()) {
+    return byId.connectedEdges().length;
+  }
+
+  const targetKey = buildCanonicalSongKey(trackLike);
+  if (!targetKey) return 0;
+
+  let maxConnections = 0;
+  cy.nodes().forEach((node) => {
+    if (getNodeCanonicalSongKey(node.data()) === targetKey) {
+      maxConnections = Math.max(maxConnections, node.connectedEdges().length);
+    }
+  });
+  return maxConnections;
+}
+
 function initGraph(data) {
   cy = cytoscape({
     container: document.getElementById("graph-container"),
@@ -68,34 +186,42 @@ function initGraph(data) {
           "background-color": "#282828",
           "background-image": "data(cover)",
           "background-fit": "cover",
-          width: 60,
-          height: 60,
+          width: "mapData(connectionCount, 0, 12, 58, 84)",
+          height: "mapData(connectionCount, 0, 12, 58, 84)",
           label: "data(name)",
           color: "#fff",
           "text-valign": "bottom",
           "text-margin-y": 8,
+          "text-max-width": "140px",
+          "text-wrap": "wrap",
           "font-size": "12px",
           "text-outline-color": "#121212",
           "text-outline-width": 2,
-          "border-width": 2,
+          "border-width": "mapData(connectionCount, 0, 12, 2, 5)",
           "border-color": "#1db954",
+          "overlay-padding": "6px",
         },
       },
       {
         selector: "edge",
         style: {
-          width: 4,
-          "line-color": "#535353",
-          "target-arrow-color": "#535353",
+          width: 5,
+          "line-color": "#3f8f67",
+          "target-arrow-color": "#1db954",
           "target-arrow-shape": "triangle",
+          "arrow-scale": 1.8,
           "curve-style": "bezier",
+          "taxi-turn": "24px",
+          "target-distance-from-node": 6,
           label: "data(hasScreenshot)",
           color: "#1db954",
-          "font-size": "14px",
+          "font-size": "13px",
           "text-background-color": "#181818",
-          "text-background-opacity": 1,
+          "text-background-opacity": 0.9,
           "text-background-padding": "4px",
           "text-background-shape": "roundrectangle",
+          "text-rotation": "autorotate",
+          "text-margin-y": -10,
         },
       },
     ],
@@ -180,8 +306,8 @@ function setupEvents() {
     const n1 = JSON.parse(n1DataStr);
     const n2 = JSON.parse(n2DataStr);
 
-    let node1Id = n1.id;
-    let node2Id = n2.id;
+    let node1Id = findExistingNodeIdForTrack(n1);
+    let node2Id = findExistingNodeIdForTrack(n2);
 
     if (cy.getElementById(node1Id).empty()) {
       cy.add({
@@ -191,6 +317,8 @@ function setupEvents() {
           name: n1.name,
           artist: n1.artist,
           cover: n1.cover,
+          durationMs: n1.durationMs || null,
+          canonicalSongKey: buildCanonicalSongKey(n1),
         },
       });
     }
@@ -202,8 +330,25 @@ function setupEvents() {
           name: n2.name,
           artist: n2.artist,
           cover: n2.cover,
+          durationMs: n2.durationMs || null,
+          canonicalSongKey: buildCanonicalSongKey(n2),
         },
       });
+    }
+
+    const node1 = cy.getElementById(node1Id);
+    const node2 = cy.getElementById(node2Id);
+    if (!node1.empty()) {
+      node1.data("canonicalSongKey", getNodeCanonicalSongKey(node1.data()));
+      if (node1.data("durationMs") == null && n1.durationMs) {
+        node1.data("durationMs", n1.durationMs);
+      }
+    }
+    if (!node2.empty()) {
+      node2.data("canonicalSongKey", getNodeCanonicalSongKey(node2.data()));
+      if (node2.data("durationMs") == null && n2.durationMs) {
+        node2.data("durationMs", n2.durationMs);
+      }
     }
 
     const edgeId = `${node1Id}-${node2Id}`;
@@ -218,6 +363,8 @@ function setupEvents() {
           hasScreenshot: currentScreenshotBase64 ? "📸" : "",
         },
       });
+
+      applyGraphQualityFixes();
 
       cy.layout({
         name: "cose",
@@ -250,6 +397,7 @@ function setupEvents() {
 function saveGraphToFirebase() {
   if (!cy || typeof firebase === "undefined" || firebase.apps.length === 0)
     return;
+  if (isApplyingFirebaseSnapshot) return;
   const elements = cy.json().elements;
   const dataToSave = {
     nodes: elements.nodes || [],
@@ -271,18 +419,26 @@ function setupFirebase() {
     .ref("graph/data")
     .on("value", (snapshot) => {
       if (snapshot.exists()) {
+        isApplyingFirebaseSnapshot = true;
         const data = snapshot.val();
         cy.elements().remove();
         if (data.nodes)
           cy.add(data.nodes.map((n) => ({ group: "nodes", data: n.data })));
         if (data.edges)
           cy.add(data.edges.map((e) => ({ group: "edges", data: e.data })));
+
+        const graphWasFixed = applyGraphQualityFixes();
         cy.layout({
           name: "cose",
-          animate: true,
+          animate: false,
           nodeRepulsion: 400000,
           idealEdgeLength: 150,
         }).run();
+        isApplyingFirebaseSnapshot = false;
+
+        if (graphWasFixed) {
+          saveGraphToFirebase();
+        }
       }
     });
 
@@ -340,6 +496,75 @@ function setupAutocomplete(nodeId) {
 
   let localDebounceTimer = null;
   let currentFetchQuery = "";
+
+  const renderTracks = (tracks) => {
+    resultsDiv.innerHTML = "";
+
+    if (tracks.length === 0) {
+      resultsDiv.innerHTML =
+        '<div style="padding:10px; color:#b3b3b3; font-size:12px;">No results found</div>';
+      resultsDiv.style.display = "block";
+      return;
+    }
+
+    tracks.forEach((track) => {
+      const div = document.createElement("div");
+      div.className = "autocomplete-item";
+
+      const coverUrl =
+        track.album && track.album.images && track.album.images.length > 0
+          ? track.album.images[track.album.images.length - 1].url
+          : "";
+
+      const artistName = track.artists
+        ? track.artists.map((a) => a.name).join(", ")
+        : "Unknown Artist";
+
+      const minutes = Math.floor(track.duration_ms / 60000);
+      const seconds = ((track.duration_ms % 60000) / 1000).toFixed(0);
+      const formattedDuration =
+        minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+
+      const connectionCount = getConnectionCountForTrack({
+        id: track.id,
+        name: track.name,
+        artist: artistName,
+        durationMs: track.duration_ms,
+      });
+
+      div.innerHTML = `
+                        <img src="${coverUrl}" alt="Cover">
+                        <div class="autocomplete-info">
+                            <span class="autocomplete-name">${track.name}</span>
+                            <span class="autocomplete-artist">${artistName}</span>
+                            <span class="autocomplete-meta">${formattedDuration} • ${connectionCount} connection${connectionCount === 1 ? "" : "s"}</span>
+                        </div>
+                    `;
+
+      div.addEventListener("click", () => {
+        searchInput.value = `${track.name} - ${artistName}`;
+        hiddenData.value = JSON.stringify({
+          id: track.id,
+          name: track.name,
+          artist: artistName,
+          cover:
+            track.album && track.album.images && track.album.images.length > 0
+              ? track.album.images[0].url
+              : "",
+          durationMs: track.duration_ms,
+          canonicalSongKey: buildCanonicalSongKey({
+            name: track.name,
+            artist: artistName,
+            durationMs: track.duration_ms,
+          }),
+        });
+        resultsDiv.style.display = "none";
+      });
+      resultsDiv.appendChild(div);
+    });
+
+    resultsDiv.style.display = "block";
+  };
 
   searchInput.addEventListener("input", (e) => {
     if (localDebounceTimer) clearTimeout(localDebounceTimer);
@@ -415,59 +640,7 @@ function setupAutocomplete(nodeId) {
 
               const tracks =
                 data.tracks && data.tracks.items ? data.tracks.items : [];
-
-              resultsDiv.innerHTML = "";
-              if (tracks.length === 0) {
-                resultsDiv.innerHTML =
-                  '<div style="padding:10px; color:#b3b3b3; font-size:12px;">No results found</div>';
-              } else {
-                tracks.forEach((track) => {
-                  const div = document.createElement("div");
-                  div.className = "autocomplete-item";
-
-                  const coverUrl =
-                    track.album &&
-                    track.album.images &&
-                    track.album.images.length > 0
-                      ? track.album.images[track.album.images.length - 1].url
-                      : "";
-
-                  const artistName = track.artists
-                    ? track.artists.map((a) => a.name).join(", ")
-                    : "Unknown Artist";
-
-                  const minutes = Math.floor(track.duration_ms / 60000);
-                  const seconds = ((track.duration_ms % 60000) / 1000).toFixed(0);
-                  const formattedDuration =
-                    minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
-
-                  div.innerHTML = `
-                            <img src="${coverUrl}" alt="Cover">
-                            <div class="autocomplete-info">
-                                <span class="autocomplete-name">${track.name}</span>
-                                <span class="autocomplete-artist">${artistName}</span>
-                            </div>
-                            <div class="autocomplete-duration">${formattedDuration}</div>
-                        `;
-                  div.addEventListener("click", () => {
-                    searchInput.value = `${track.name} - ${artistName}`;
-                    hiddenData.value = JSON.stringify({
-                      id: track.id,
-                      name: track.name,
-                      artist: artistName,
-                      cover:
-                        track.album &&
-                        track.album.images &&
-                        track.album.images.length > 0
-                          ? track.album.images[0].url
-                          : "",
-                    });
-                    resultsDiv.style.display = "none";
-                  });
-                  resultsDiv.appendChild(div);
-                });
-              }
-              resultsDiv.style.display = "block";
+              renderTracks(tracks);
               return;
             }
 
@@ -490,57 +663,7 @@ function setupAutocomplete(nodeId) {
 
         const tracks =
           data.tracks && data.tracks.items ? data.tracks.items : [];
-
-        resultsDiv.innerHTML = "";
-        if (tracks.length === 0) {
-          resultsDiv.innerHTML =
-            '<div style="padding:10px; color:#b3b3b3; font-size:12px;">No results found</div>';
-        } else {
-          tracks.forEach((track) => {
-            const div = document.createElement("div");
-            div.className = "autocomplete-item";
-
-            const coverUrl =
-              track.album && track.album.images && track.album.images.length > 0
-                ? track.album.images[track.album.images.length - 1].url
-                : "";
-
-            const artistName = track.artists
-              ? track.artists.map((a) => a.name).join(", ")
-              : "Unknown Artist";
-
-            const minutes = Math.floor(track.duration_ms / 60000);
-            const seconds = ((track.duration_ms % 60000) / 1000).toFixed(0);
-            const formattedDuration =
-              minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
-
-            div.innerHTML = `
-                            <img src="${coverUrl}" alt="Cover">
-                            <div class="autocomplete-info">
-                                <span class="autocomplete-name">${track.name}</span>
-                                <span class="autocomplete-artist">${artistName}</span>
-                            </div>
-                            <div class="autocomplete-duration">${formattedDuration}</div>
-                        `;
-            div.addEventListener("click", () => {
-              searchInput.value = `${track.name} - ${artistName}`;
-              hiddenData.value = JSON.stringify({
-                id: track.id,
-                name: track.name,
-                artist: artistName,
-                cover:
-                  track.album &&
-                  track.album.images &&
-                  track.album.images.length > 0
-                    ? track.album.images[0].url
-                    : "",
-              });
-              resultsDiv.style.display = "none";
-            });
-            resultsDiv.appendChild(div);
-          });
-        }
-        resultsDiv.style.display = "block";
+        renderTracks(tracks);
       } catch (err) {
         console.error(err);
       }
