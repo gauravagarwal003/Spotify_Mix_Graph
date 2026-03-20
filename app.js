@@ -172,6 +172,83 @@ function getConnectionCountForTrack(trackLike) {
   return maxConnections;
 }
 
+function findLongestNonCyclicPathNodeIds() {
+  if (!cy) return { pathNodeIds: [], timedOut: false };
+
+  const nodeIds = cy.nodes().map((node) => node.id());
+  if (nodeIds.length === 0) return { pathNodeIds: [], timedOut: false };
+
+  const adjacency = new Map(nodeIds.map((id) => [id, []]));
+  cy.edges().forEach((edge) => {
+    const sourceId = edge.data("source");
+    const targetId = edge.data("target");
+    if (adjacency.has(sourceId) && adjacency.has(targetId)) {
+      adjacency.get(sourceId).push(targetId);
+    }
+  });
+
+  let bestPath = [];
+  let timedOut = false;
+  const visited = new Set();
+  const currentPath = [];
+  const startTime = performance.now();
+  const maxComputeMs = 120;
+
+  const dfs = (nodeId) => {
+    if (timedOut) return;
+    if (performance.now() - startTime > maxComputeMs) {
+      timedOut = true;
+      return;
+    }
+
+    visited.add(nodeId);
+    currentPath.push(nodeId);
+
+    if (currentPath.length > bestPath.length) {
+      bestPath = currentPath.slice();
+    }
+
+    const neighbors = adjacency.get(nodeId) || [];
+    neighbors.forEach((neighborId) => {
+      if (!visited.has(neighborId)) {
+        dfs(neighborId);
+      }
+    });
+
+    currentPath.pop();
+    visited.delete(nodeId);
+  };
+
+  nodeIds.forEach((nodeId) => dfs(nodeId));
+
+  return { pathNodeIds: bestPath, timedOut };
+}
+
+function updateLongestPathDisplay() {
+  const summaryEl = document.getElementById("longest-path-summary");
+  const valueEl = document.getElementById("longest-path-value");
+  if (!summaryEl || !valueEl || !cy) return;
+
+  const { pathNodeIds, timedOut } = findLongestNonCyclicPathNodeIds();
+
+  if (pathNodeIds.length === 0) {
+    summaryEl.textContent = "No transitions yet.";
+    valueEl.textContent = "-";
+    return;
+  }
+
+  const edgeCount = Math.max(0, pathNodeIds.length - 1);
+  const nodeNames = pathNodeIds.map((id) => {
+    const node = cy.getElementById(id);
+    return node.empty() ? id : node.data("name") || id;
+  });
+
+  summaryEl.textContent = timedOut
+    ? `Best path found within compute budget (${edgeCount} transitions).`
+    : `${edgeCount} transition${edgeCount === 1 ? "" : "s"}.`;
+  valueEl.textContent = nodeNames.join(" -> ");
+}
+
 function initGraph(data) {
   cy = cytoscape({
     container: document.getElementById("graph-container"),
@@ -262,6 +339,8 @@ function initGraph(data) {
 
     showDetails(html);
   });
+
+  updateLongestPathDisplay();
 }
 
 function showDetails(htmlContent) {
@@ -373,6 +452,8 @@ function setupEvents() {
         idealEdgeLength: 150,
       }).run();
 
+      updateLongestPathDisplay();
+
       // Auto-save to Firebase
       saveGraphToFirebase();
 
@@ -434,6 +515,7 @@ function setupFirebase() {
           nodeRepulsion: 400000,
           idealEdgeLength: 150,
         }).run();
+        updateLongestPathDisplay();
         isApplyingFirebaseSnapshot = false;
 
         if (graphWasFixed) {
