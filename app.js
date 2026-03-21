@@ -32,6 +32,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Instead of GitHub logic, we now just start empty and wait for Firebase Realtime DB.
   let graphData = { nodes: [], edges: [] };
   initGraph(graphData);
+  bindGraphResizeHandlers();
 
   setupEvents();
   setupAutocomplete("node1");
@@ -45,6 +46,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
   }
 });
+
+function requestGraphResize() {
+  if (!cy) return;
+  window.requestAnimationFrame(() => {
+    if (!cy) return;
+    cy.resize();
+    cy.fit(undefined, 20);
+  });
+}
+
+function bindGraphResizeHandlers() {
+  window.addEventListener("resize", requestGraphResize);
+  window.addEventListener("orientationchange", () => {
+    window.setTimeout(requestGraphResize, 120);
+  });
+}
 
 function saveGraphToLocal() {
   if (!cy) return;
@@ -341,6 +358,7 @@ function initGraph(data) {
   });
 
   updateLongestPathDisplay();
+  requestGraphResize();
 }
 
 function showDetails(htmlContent) {
