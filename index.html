@@ -189,6 +189,26 @@
         <div class="panel" id="details-panel" style="display: none">
           <div id="details-content"></div>
         </div>
+
+        <div class="panel" id="graph-search-panel">
+          <h2>Find Song In Graph</h2>
+          <div class="input-group">
+            <label for="graph-search-input">Song Name or Artist</label>
+            <input
+              type="text"
+              id="graph-search-input"
+              placeholder="Type to find a song in the graph..."
+              autocomplete="off"
+            />
+            <div id="graph-search-results" class="autocomplete-results"></div>
+          </div>
+          <button type="button" class="btn-outline" id="graph-search-clear-btn">
+            Clear Highlight
+          </button>
+          <p id="graph-search-help" class="graph-search-help">
+            Select a song to highlight incoming and outgoing connections.
+          </p>
+        </div>
       </aside>
 
       <main id="graph-container"></main>

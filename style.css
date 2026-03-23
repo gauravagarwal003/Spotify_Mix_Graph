@@ -140,6 +140,42 @@ input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focu
     box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 
+#graph-search-panel .input-group {
+    margin-bottom: 12px;
+}
+
+#graph-search-panel .autocomplete-results {
+    top: 72px;
+}
+
+.graph-search-help {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--text-sec);
+}
+
+.graph-search-result {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.graph-search-result-name {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.graph-search-result-meta {
+    font-size: 0.75rem;
+    color: var(--text-sec);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .autocomplete-item {
     display: flex;
     align-items: center;

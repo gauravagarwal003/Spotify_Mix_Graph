@@ -37,6 +37,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupEvents();
   setupAutocomplete("node1");
   setupAutocomplete("node2");
+  setupGraphSearch();
 
   if (typeof firebase !== "undefined" && firebase.apps.length > 0) {
     setupFirebase();
@@ -47,19 +48,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-function requestGraphResize() {
+function requestGraphResize(shouldFit = false) {
   if (!cy) return;
   window.requestAnimationFrame(() => {
     if (!cy) return;
     cy.resize();
-    cy.fit(undefined, 20);
+    if (shouldFit) {
+      cy.fit(undefined, 20);
+    }
   });
 }
 
 function bindGraphResizeHandlers() {
-  window.addEventListener("resize", requestGraphResize);
+  window.addEventListener("resize", () => requestGraphResize(false));
   window.addEventListener("orientationchange", () => {
-    window.setTimeout(requestGraphResize, 120);
+    window.setTimeout(() => requestGraphResize(true), 120);
   });
 }
 
@@ -266,6 +269,123 @@ function updateLongestPathDisplay() {
   valueEl.textContent = nodeNames.join(" -> ");
 }
 
+function getGraphLayoutOptions(animate = true) {
+  return {
+    name: "cose",
+    padding: 60,
+    animate,
+    animationDuration: animate ? 550 : 0,
+    randomize: false,
+    fit: true,
+    nodeOverlap: 16,
+    componentSpacing: 90,
+    gravity: 1.15,
+    numIter: 2000,
+    initialTemp: 900,
+    coolingFactor: 0.98,
+    minTemp: 1,
+    nodeRepulsion: (node) => 180000 + node.connectedEdges().length * 32000,
+    idealEdgeLength: (edge) => {
+      const sourceConnections = edge.source().connectedEdges().length;
+      const targetConnections = edge.target().connectedEdges().length;
+      const maxConnections = Math.max(sourceConnections, targetConnections);
+      return 125 + Math.min(95, maxConnections * 4);
+    },
+  };
+}
+
+function runGraphLayout(animate = true) {
+  if (!cy) return;
+  cy.layout(getGraphLayoutOptions(animate)).run();
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function listConnectedSongNames(nodeCollection) {
+  const uniqueNames = new Set();
+  nodeCollection.forEach((node) => {
+    const name = node.data("name");
+    const artist = node.data("artist");
+    if (!name) return;
+    uniqueNames.add(artist ? `${name} - ${artist}` : name);
+  });
+  return Array.from(uniqueNames).sort((a, b) => a.localeCompare(b));
+}
+
+function buildConnectionListHtml(items) {
+  if (items.length === 0) {
+    return '<li style="color:#b3b3b3;">None</li>';
+  }
+  return items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+}
+
+function clearGraphHighlight() {
+  if (!cy) return;
+  cy.elements().removeClass(
+    "is-dimmed is-selected is-incoming is-outgoing is-neighbor-in is-neighbor-out",
+  );
+}
+
+function highlightNodeConnections(node) {
+  if (!cy || !node || node.empty()) return;
+
+  clearGraphHighlight();
+
+  const incomingEdges = node.incomers("edge");
+  const outgoingEdges = node.outgoers("edge");
+  const incomingNodes = incomingEdges.sources();
+  const outgoingNodes = outgoingEdges.targets();
+
+  cy.elements().addClass("is-dimmed");
+
+  node.removeClass("is-dimmed").addClass("is-selected");
+  incomingEdges.removeClass("is-dimmed").addClass("is-incoming");
+  outgoingEdges.removeClass("is-dimmed").addClass("is-outgoing");
+  incomingNodes.removeClass("is-dimmed").addClass("is-neighbor-in");
+  outgoingNodes.removeClass("is-dimmed").addClass("is-neighbor-out");
+}
+
+function showNodeDetails(node) {
+  if (!node || node.empty()) return;
+  const d = node.data();
+  const incomingNodes = node.incomers("edge").sources();
+  const outgoingNodes = node.outgoers("edge").targets();
+  const incomingNames = listConnectedSongNames(incomingNodes);
+  const outgoingNames = listConnectedSongNames(outgoingNodes);
+
+  showDetails(`
+      <img src="${escapeHtml(d.cover)}" alt="Cover" style="width:100%">
+      <h3 style="margin:12px 0 4px">${escapeHtml(d.name)}</h3>
+      <p>${escapeHtml(d.artist)}</p>
+      <p style="margin-top:8px;"><strong>${incomingNames.length}</strong> incoming, <strong>${outgoingNames.length}</strong> outgoing</p>
+      <p style="margin-top:10px;"><strong>Incoming From</strong></p>
+      <ul style="margin:0; padding-left:18px;">${buildConnectionListHtml(incomingNames)}</ul>
+      <p style="margin-top:10px;"><strong>Outgoing To</strong></p>
+      <ul style="margin:0; padding-left:18px;">${buildConnectionListHtml(outgoingNames)}</ul>
+    `);
+}
+
+function focusNodeAndNeighborhood(node, zoomPadding = 90) {
+  if (!cy || !node || node.empty()) return;
+  const neighborhood = node.closedNeighborhood();
+  cy.animate(
+    {
+      fit: { eles: neighborhood, padding: zoomPadding },
+    },
+    {
+      duration: 420,
+      easing: "ease-out-cubic",
+    },
+  );
+}
+
 function initGraph(data) {
   cy = cytoscape({
     container: document.getElementById("graph-container"),
@@ -294,6 +414,7 @@ function initGraph(data) {
           "border-width": "mapData(connectionCount, 0, 12, 2, 5)",
           "border-color": "#1db954",
           "overlay-padding": "6px",
+          opacity: 0.97,
         },
       },
       {
@@ -305,6 +426,7 @@ function initGraph(data) {
           "target-arrow-shape": "triangle",
           "arrow-scale": 1.8,
           "curve-style": "bezier",
+          "control-point-step-size": 42,
           "taxi-turn": "24px",
           "target-distance-from-node": 6,
           label: "data(hasScreenshot)",
@@ -316,25 +438,70 @@ function initGraph(data) {
           "text-background-shape": "roundrectangle",
           "text-rotation": "autorotate",
           "text-margin-y": -10,
+          opacity: 0.82,
+        },
+      },
+      {
+        selector: ".is-dimmed",
+        style: {
+          opacity: 0.12,
+          "text-opacity": 0.12,
+        },
+      },
+      {
+        selector: "node.is-selected",
+        style: {
+          "border-color": "#ffffff",
+          "border-width": 6,
+          "z-index": 999,
+          opacity: 1,
+        },
+      },
+      {
+        selector: "node.is-neighbor-in",
+        style: {
+          "border-color": "#5cc8ff",
+          "border-width": 5,
+          opacity: 1,
+        },
+      },
+      {
+        selector: "node.is-neighbor-out",
+        style: {
+          "border-color": "#f8c537",
+          "border-width": 5,
+          opacity: 1,
+        },
+      },
+      {
+        selector: "edge.is-incoming",
+        style: {
+          "line-color": "#5cc8ff",
+          "target-arrow-color": "#5cc8ff",
+          width: 7,
+          opacity: 0.98,
+        },
+      },
+      {
+        selector: "edge.is-outgoing",
+        style: {
+          "line-color": "#f8c537",
+          "target-arrow-color": "#f8c537",
+          width: 7,
+          opacity: 0.98,
         },
       },
     ],
-    layout: {
-      name: "cose",
-      padding: 50,
-      animate: true,
-      nodeRepulsion: 400000,
-      idealEdgeLength: 150,
-    },
+    layout: getGraphLayoutOptions(true),
+    wheelSensitivity: 0.2,
+    minZoom: 0.15,
+    maxZoom: 2.5,
   });
 
   cy.on("tap", "node", function (evt) {
-    const d = evt.target.data();
-    showDetails(`
-            <img src="${d.cover}" alt="Cover" style="width:100%">
-            <h3 style="margin:12px 0 4px">${d.name}</h3>
-            <p>${d.artist}</p>
-        `);
+    const node = evt.target;
+    highlightNodeConnections(node);
+    showNodeDetails(node);
   });
 
   cy.on("tap", "edge", function (evt) {
@@ -357,8 +524,14 @@ function initGraph(data) {
     showDetails(html);
   });
 
+  cy.on("tap", (evt) => {
+    if (evt.target === cy) {
+      clearGraphHighlight();
+    }
+  });
+
   updateLongestPathDisplay();
-  requestGraphResize();
+  requestGraphResize(true);
 }
 
 function showDetails(htmlContent) {
@@ -463,12 +636,7 @@ function setupEvents() {
 
       applyGraphQualityFixes();
 
-      cy.layout({
-        name: "cose",
-        animate: true,
-        nodeRepulsion: 400000,
-        idealEdgeLength: 150,
-      }).run();
+      runGraphLayout(true);
 
       updateLongestPathDisplay();
 
@@ -527,12 +695,7 @@ function setupFirebase() {
           cy.add(data.edges.map((e) => ({ group: "edges", data: e.data })));
 
         const graphWasFixed = applyGraphQualityFixes();
-        cy.layout({
-          name: "cose",
-          animate: false,
-          nodeRepulsion: 400000,
-          idealEdgeLength: 150,
-        }).run();
+        runGraphLayout(false);
         updateLongestPathDisplay();
         isApplyingFirebaseSnapshot = false;
 
@@ -768,6 +931,117 @@ function setupAutocomplete(nodeId) {
         console.error(err);
       }
     }, 450);
+  });
+}
+
+function setupGraphSearch() {
+  const searchInput = document.getElementById("graph-search-input");
+  const resultsDiv = document.getElementById("graph-search-results");
+  const clearBtn = document.getElementById("graph-search-clear-btn");
+
+  if (!searchInput || !resultsDiv || !clearBtn) return;
+
+  const hideResults = () => {
+    resultsDiv.style.display = "none";
+  };
+
+  const getNodeSearchText = (node) => {
+    const data = node.data();
+    return normalizeSongText(`${data.name || ""} ${data.artist || ""}`);
+  };
+
+  const renderSearchResults = (matches) => {
+    resultsDiv.innerHTML = "";
+
+    if (matches.length === 0) {
+      resultsDiv.innerHTML =
+        '<div style="padding:10px; color:#b3b3b3; font-size:12px;">No graph matches</div>';
+      resultsDiv.style.display = "block";
+      return;
+    }
+
+    matches.forEach((node) => {
+      const item = document.createElement("div");
+      item.className = "autocomplete-item";
+
+      const incomingCount = node.incomers("edge").length;
+      const outgoingCount = node.outgoers("edge").length;
+      const totalCount = node.connectedEdges().length;
+
+      item.innerHTML = `
+        <img src="${escapeHtml(node.data("cover"))}" alt="Cover">
+        <div class="graph-search-result">
+          <span class="graph-search-result-name">${escapeHtml(node.data("name"))}</span>
+          <span class="graph-search-result-meta">${escapeHtml(node.data("artist"))}</span>
+          <span class="graph-search-result-meta">${totalCount} total • ${incomingCount} in • ${outgoingCount} out</span>
+        </div>
+      `;
+
+      item.addEventListener("click", () => {
+        const data = node.data();
+        searchInput.value = `${data.name} - ${data.artist}`;
+        highlightNodeConnections(node);
+        showNodeDetails(node);
+        focusNodeAndNeighborhood(node, 110);
+        hideResults();
+      });
+
+      resultsDiv.appendChild(item);
+    });
+
+    resultsDiv.style.display = "block";
+  };
+
+  searchInput.addEventListener("input", (event) => {
+    const rawQuery = event.target.value || "";
+    const query = normalizeSongText(rawQuery);
+
+    if (!query || !cy) {
+      hideResults();
+      return;
+    }
+
+    const matches = cy
+      .nodes()
+      .toArray()
+      .filter((node) => getNodeSearchText(node).includes(query))
+      .sort((a, b) => {
+        const aCount = a.connectedEdges().length;
+        const bCount = b.connectedEdges().length;
+        if (aCount !== bCount) return bCount - aCount;
+        return String(a.data("name") || "").localeCompare(String(b.data("name") || ""));
+      })
+      .slice(0, 15);
+
+    renderSearchResults(matches);
+  });
+
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideResults();
+      return;
+    }
+
+    if (event.key === "Enter") {
+      const firstResult = resultsDiv.querySelector(".autocomplete-item");
+      if (firstResult) {
+        event.preventDefault();
+        firstResult.click();
+      }
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!resultsDiv.contains(event.target) && event.target !== searchInput) {
+      hideResults();
+    }
+  });
+
+  clearBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    hideResults();
+    clearGraphHighlight();
+    requestGraphResize(false);
   });
 }
 
