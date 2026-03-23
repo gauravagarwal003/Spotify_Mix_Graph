@@ -192,83 +192,6 @@ function getConnectionCountForTrack(trackLike) {
   return maxConnections;
 }
 
-function findLongestNonCyclicPathNodeIds() {
-  if (!cy) return { pathNodeIds: [], timedOut: false };
-
-  const nodeIds = cy.nodes().map((node) => node.id());
-  if (nodeIds.length === 0) return { pathNodeIds: [], timedOut: false };
-
-  const adjacency = new Map(nodeIds.map((id) => [id, []]));
-  cy.edges().forEach((edge) => {
-    const sourceId = edge.data("source");
-    const targetId = edge.data("target");
-    if (adjacency.has(sourceId) && adjacency.has(targetId)) {
-      adjacency.get(sourceId).push(targetId);
-    }
-  });
-
-  let bestPath = [];
-  let timedOut = false;
-  const visited = new Set();
-  const currentPath = [];
-  const startTime = performance.now();
-  const maxComputeMs = 120;
-
-  const dfs = (nodeId) => {
-    if (timedOut) return;
-    if (performance.now() - startTime > maxComputeMs) {
-      timedOut = true;
-      return;
-    }
-
-    visited.add(nodeId);
-    currentPath.push(nodeId);
-
-    if (currentPath.length > bestPath.length) {
-      bestPath = currentPath.slice();
-    }
-
-    const neighbors = adjacency.get(nodeId) || [];
-    neighbors.forEach((neighborId) => {
-      if (!visited.has(neighborId)) {
-        dfs(neighborId);
-      }
-    });
-
-    currentPath.pop();
-    visited.delete(nodeId);
-  };
-
-  nodeIds.forEach((nodeId) => dfs(nodeId));
-
-  return { pathNodeIds: bestPath, timedOut };
-}
-
-function updateLongestPathDisplay() {
-  const summaryEl = document.getElementById("longest-path-summary");
-  const valueEl = document.getElementById("longest-path-value");
-  if (!summaryEl || !valueEl || !cy) return;
-
-  const { pathNodeIds, timedOut } = findLongestNonCyclicPathNodeIds();
-
-  if (pathNodeIds.length === 0) {
-    summaryEl.textContent = "No transitions yet.";
-    valueEl.textContent = "-";
-    return;
-  }
-
-  const edgeCount = Math.max(0, pathNodeIds.length - 1);
-  const nodeNames = pathNodeIds.map((id) => {
-    const node = cy.getElementById(id);
-    return node.empty() ? id : node.data("name") || id;
-  });
-
-  summaryEl.textContent = timedOut
-    ? `Best path found within compute budget (${edgeCount} transitions).`
-    : `${edgeCount} transition${edgeCount === 1 ? "" : "s"}.`;
-  valueEl.textContent = nodeNames.join(" -> ");
-}
-
 function getGraphLayoutOptions(animate = true) {
   return {
     name: "cose",
@@ -296,7 +219,41 @@ function getGraphLayoutOptions(animate = true) {
 
 function runGraphLayout(animate = true) {
   if (!cy) return;
-  cy.layout(getGraphLayoutOptions(animate)).run();
+  const layout = cy.layout(getGraphLayoutOptions(animate));
+  layout.one("layoutstop", () => {
+    placeClarityAtTop(animate);
+  });
+  layout.run();
+}
+
+function getClarityNode() {
+  if (!cy) return null;
+  const matches = cy
+    .nodes()
+    .filter((node) => normalizeSongText(node.data("name")) === "clarity");
+  if (!matches || matches.length === 0) return null;
+  return matches[0];
+}
+
+function placeClarityAtTop(animate = true) {
+  if (!cy || cy.nodes().length === 0) return;
+  const clarityNode = getClarityNode();
+  if (!clarityNode || clarityNode.empty()) return;
+
+  const bounds = cy.nodes().boundingBox();
+  const targetPosition = {
+    x: (bounds.x1 + bounds.x2) / 2,
+    y: bounds.y1 + clarityNode.outerHeight() / 2 + 18,
+  };
+
+  if (animate) {
+    clarityNode.animate(
+      { position: targetPosition },
+      { duration: 280, easing: "ease-out-cubic" },
+    );
+  } else {
+    clarityNode.position(targetPosition);
+  }
 }
 
 function escapeHtml(value) {
@@ -530,7 +487,10 @@ function initGraph(data) {
     }
   });
 
-  updateLongestPathDisplay();
+  cy.one("layoutstop", () => {
+    placeClarityAtTop(true);
+  });
+
   requestGraphResize(true);
 }
 
@@ -638,8 +598,6 @@ function setupEvents() {
 
       runGraphLayout(true);
 
-      updateLongestPathDisplay();
-
       // Auto-save to Firebase
       saveGraphToFirebase();
 
@@ -696,7 +654,6 @@ function setupFirebase() {
 
         const graphWasFixed = applyGraphQualityFixes();
         runGraphLayout(false);
-        updateLongestPathDisplay();
         isApplyingFirebaseSnapshot = false;
 
         if (graphWasFixed) {

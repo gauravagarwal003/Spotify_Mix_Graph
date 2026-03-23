@@ -66,31 +66,6 @@ header p {
     margin-bottom: 20px;
 }
 
-.longest-path-panel {
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid #2c2c2c;
-}
-
-.longest-path-panel h3 {
-    margin: 0 0 8px;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-}
-
-.longest-path-summary {
-    font-size: 0.75rem;
-    color: var(--text-sec);
-    margin-bottom: 8px;
-}
-
-.longest-path-value {
-    font-size: 0.82rem;
-    line-height: 1.35;
-    color: var(--spotify-hover);
-    word-break: break-word;
-}
-
 #add-transition-form {
     display: flex;
     flex-direction: column;
