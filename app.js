@@ -28,6 +28,16 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  if (typeof cytoscape === "undefined") {
+    const graphContainer = document.getElementById("graph-container");
+    if (graphContainer) {
+      graphContainer.innerHTML =
+        '<div style="padding:20px;color:#fff;background:#1b1b1b;border:1px solid #333;border-radius:8px;margin:20px;line-height:1.5;">Unable to load graph engine (Cytoscape). Please check your network, disable strict content blockers for this site, and refresh.</div>';
+    }
+    console.error("Cytoscape library failed to load.");
+    return;
+  }
+
   // Wait for auth to complete BEFORE doing anything else
   await checkSpotifyAuth();
 
