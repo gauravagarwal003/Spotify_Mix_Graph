@@ -3,6 +3,8 @@ let debounceTimer;
 let currentScreenshotBase64 = null;
 const SONG_TRANSITION_TO_REMOVE = { from: "circus", to: "212" };
 let isApplyingFirebaseSnapshot = false;
+let activeGraphRef = null;
+let activeGraphValueHandler = null;
 
 // Before deploying, create a Spotify Developer App and put its Client ID here
 const SPOTIFY_CLIENT_ID = "03f085f9e7054e1abb2be9a2e89a8892"; // Using a placeholder, change to yours
@@ -623,14 +625,19 @@ function saveGraphToFirebase() {
   if (!cy || typeof firebase === "undefined" || firebase.apps.length === 0)
     return;
   if (isApplyingFirebaseSnapshot) return;
+  const user = firebase.auth().currentUser;
+  if (!user) return;
+
   const elements = cy.json().elements;
   const dataToSave = {
     nodes: elements.nodes || [],
     edges: elements.edges || [],
   };
+
+  const userGraphPath = `graphs/${user.uid}/data`;
   firebase
     .database()
-    .ref("graph/data")
+    .ref(userGraphPath)
     .set(dataToSave)
     .catch((err) => {
       console.error("Save to Firebase failed:", err);
@@ -638,19 +645,42 @@ function saveGraphToFirebase() {
 }
 
 function setupFirebase() {
-  // 1. Listen for Live Data
-  firebase
-    .database()
-    .ref("graph/data")
-    .on("value", (snapshot) => {
+  const clearGraph = () => {
+    if (!cy) return;
+    cy.elements().remove();
+    requestGraphResize(false);
+  };
+
+  const detachGraphListener = () => {
+    if (!activeGraphRef || !activeGraphValueHandler) return;
+    activeGraphRef.off("value", activeGraphValueHandler);
+    activeGraphRef = null;
+    activeGraphValueHandler = null;
+  };
+
+  const attachGraphListenerForUser = (user) => {
+    if (!user) {
+      clearGraph();
+      return;
+    }
+
+    const authUidAtStart = user.uid;
+    const userGraphPath = `graphs/${user.uid}/data`;
+    const userGraphRef = firebase.database().ref(userGraphPath);
+    const legacyGraphRef = firebase.database().ref("graph/data");
+
+    activeGraphValueHandler = (snapshot) => {
+      isApplyingFirebaseSnapshot = true;
+      cy.elements().remove();
+
       if (snapshot.exists()) {
-        isApplyingFirebaseSnapshot = true;
         const data = snapshot.val();
-        cy.elements().remove();
-        if (data.nodes)
+        if (data.nodes) {
           cy.add(data.nodes.map((n) => ({ group: "nodes", data: n.data })));
-        if (data.edges)
+        }
+        if (data.edges) {
           cy.add(data.edges.map((e) => ({ group: "edges", data: e.data })));
+        }
 
         const graphWasFixed = applyGraphQualityFixes();
         runGraphLayout(false);
@@ -659,8 +689,33 @@ function setupFirebase() {
         if (graphWasFixed) {
           saveGraphToFirebase();
         }
+        return;
       }
-    });
+
+      isApplyingFirebaseSnapshot = false;
+      requestGraphResize(false);
+    };
+
+    userGraphRef
+      .once("value")
+      .then((userSnapshot) => {
+        if (userSnapshot.exists()) return;
+        return legacyGraphRef.once("value").then((legacySnapshot) => {
+          if (!legacySnapshot.exists()) return;
+          return userGraphRef.set(legacySnapshot.val());
+        });
+      })
+      .catch((err) => {
+        console.error("Legacy graph migration check failed:", err);
+      })
+      .finally(() => {
+        const currentUser = firebase.auth().currentUser;
+        if (!currentUser || currentUser.uid !== authUidAtStart) return;
+
+        activeGraphRef = userGraphRef;
+        activeGraphRef.on("value", activeGraphValueHandler);
+      });
+  };
 
   // 2. Auth State UI
   const mainPanel = document.getElementById("main-panel");
@@ -668,6 +723,8 @@ function setupFirebase() {
   const loggedInUi = document.getElementById("logged-in-container");
 
   firebase.auth().onAuthStateChanged((user) => {
+    detachGraphListener();
+
     if (user) {
       if (
         spotifyAccessToken &&
@@ -680,10 +737,12 @@ function setupFirebase() {
       }
       loginForm.style.display = "none";
       loggedInUi.style.display = "block";
+      attachGraphListenerForUser(user);
     } else {
       mainPanel.style.display = "none";
       loginForm.style.display = "block";
       loggedInUi.style.display = "none";
+      clearGraph();
     }
   });
 
