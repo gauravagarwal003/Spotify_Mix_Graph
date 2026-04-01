@@ -462,7 +462,6 @@ function initGraph(data) {
       },
     ],
     layout: getGraphLayoutOptions(true),
-    wheelSensitivity: 0.2,
     minZoom: 0.15,
     maxZoom: 2.5,
   });
@@ -674,10 +673,8 @@ function setupFirebase() {
       return;
     }
 
-    const authUidAtStart = user.uid;
     const userGraphPath = `graphs/${user.uid}/data`;
-    const userGraphRef = firebase.database().ref(userGraphPath);
-    const legacyGraphRef = firebase.database().ref("graph/data");
+    activeGraphRef = firebase.database().ref(userGraphPath);
 
     activeGraphValueHandler = (snapshot) => {
       isApplyingFirebaseSnapshot = true;
@@ -706,25 +703,7 @@ function setupFirebase() {
       requestGraphResize(false);
     };
 
-    userGraphRef
-      .once("value")
-      .then((userSnapshot) => {
-        if (userSnapshot.exists()) return;
-        return legacyGraphRef.once("value").then((legacySnapshot) => {
-          if (!legacySnapshot.exists()) return;
-          return userGraphRef.set(legacySnapshot.val());
-        });
-      })
-      .catch((err) => {
-        console.error("Legacy graph migration check failed:", err);
-      })
-      .finally(() => {
-        const currentUser = firebase.auth().currentUser;
-        if (!currentUser || currentUser.uid !== authUidAtStart) return;
-
-        activeGraphRef = userGraphRef;
-        activeGraphRef.on("value", activeGraphValueHandler);
-      });
+    activeGraphRef.on("value", activeGraphValueHandler);
   };
 
   // 2. Auth State UI
@@ -774,6 +753,30 @@ function setupFirebase() {
   // 4. Logout
   document.getElementById("fb-logout-btn").addEventListener("click", () => {
     firebase.auth().signOut();
+  });
+
+  // 5. Reset Graph
+  document.getElementById("reset-graph-btn").addEventListener("click", () => {
+    const user = firebase.auth().currentUser;
+    if (!user) {
+      alert("Please sign in first.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "This will permanently delete your graph data from the cloud for this account. Continue?",
+    );
+    if (!confirmed) return;
+
+    const userGraphPath = `graphs/${user.uid}/data`;
+    firebase
+      .database()
+      .ref(userGraphPath)
+      .remove()
+      .catch((err) => {
+        console.error("Reset graph failed:", err);
+        alert("Could not reset graph. Please try again.");
+      });
   });
 }
 
