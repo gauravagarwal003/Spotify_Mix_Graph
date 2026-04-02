@@ -77,6 +77,12 @@ h1, h2, p, label {
     transition: all 0.2s;
     white-space: nowrap;
     flex: 0 0 auto;
+    width: auto;
+    min-width: max-content;
+}
+
+.header-nav .nav-btn {
+    width: auto;
 }
 
 .nav-btn:hover {
