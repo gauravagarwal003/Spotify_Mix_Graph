@@ -36,9 +36,44 @@
               margin-bottom: 15px;
             "
           >
-            To search for real Spotify tracks and artwork, connect your account.
+            Spotify login is only used to search real tracks and album artwork.
+            We never edit your Spotify library.
           </p>
           <button id="login-btn" class="btn-green">Login to Spotify</button>
+        </div>
+
+        <div class="panel" id="how-it-works-panel">
+          <h2>Why Login + How It Works</h2>
+          <div class="info-grid">
+            <div class="info-card">
+              <h3>1) Spotify Login</h3>
+              <p>
+                Needed only for searching official track metadata (name, artist,
+                artwork, duration).
+              </p>
+            </div>
+            <div class="info-card">
+              <h3>2) Google Login</h3>
+              <p>
+                Needed to protect edits. Your graph is stored in Firebase under
+                your account only.
+              </p>
+            </div>
+            <div class="info-card">
+              <h3>3) Add and Explore</h3>
+              <p>
+                Add transitions, click songs to inspect incoming/outgoing paths,
+                and search the graph from the sidebar.
+              </p>
+            </div>
+            <div class="info-card">
+              <h3>4) Data Ownership</h3>
+              <p>
+                Your graph auto-saves to cloud for your signed-in Google account.
+                Sign out to lock editing.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div class="panel" id="main-panel" style="display: none">
@@ -112,7 +147,8 @@
                 margin-bottom: 15px;
               "
             >
-              Login to edit. Anyone else can only view the graph.
+              Login to edit and sync your private graph. Signed-out users can view
+              but cannot change data.
             </p>
             <button
               type="button"
@@ -182,19 +218,41 @@
             >
               Logout
             </button>
-            <button
-              type="button"
-              id="reset-graph-btn"
-              class="btn-outline"
-              style="margin-top: 10px; padding: 10px; border-color: #f44336; color: #f44336"
-            >
-              Reset My Graph
-            </button>
+            <div id="danger-zone" class="danger-zone">
+              <button type="button" id="danger-toggle-btn" class="btn-subtle">
+                Advanced Data Controls
+              </button>
+              <div id="danger-zone-content" style="display: none">
+                <p class="danger-help">
+                  Reset permanently deletes your current account graph.
+                </p>
+                <label for="reset-confirm-input" class="danger-label"
+                  >Type RESET to enable:</label
+                >
+                <input
+                  type="text"
+                  id="reset-confirm-input"
+                  placeholder="Type RESET"
+                  autocomplete="off"
+                />
+                <button
+                  type="button"
+                  id="reset-graph-btn"
+                  class="btn-danger-subtle"
+                  disabled
+                >
+                  Permanently Reset My Graph
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="panel" id="details-panel" style="display: none">
           <div id="details-content"></div>
+          <button type="button" class="btn-outline" id="details-clear-highlight-btn">
+            Deselect Highlight
+          </button>
         </div>
 
         <div class="panel" id="graph-search-panel">
@@ -210,7 +268,7 @@
             <div id="graph-search-results" class="autocomplete-results"></div>
           </div>
           <button type="button" class="btn-outline" id="graph-search-clear-btn">
-            Clear Highlight
+            Deselect Highlight
           </button>
           <p id="graph-search-help" class="graph-search-help">
             Select a song to highlight incoming and outgoing connections.

@@ -302,6 +302,47 @@ function clearGraphHighlight() {
   );
 }
 
+function isEditorSignedIn() {
+  return Boolean(
+    typeof firebase !== "undefined" &&
+      firebase.apps.length > 0 &&
+      firebase.auth().currentUser,
+  );
+}
+
+function deleteTransition(edgeId) {
+  if (!cy || !edgeId) return;
+  const edge = cy.getElementById(edgeId);
+  if (edge.empty()) {
+    alert("Transition no longer exists.");
+    return;
+  }
+
+  const sourceNode = edge.source();
+  const targetNode = edge.target();
+  const sourceName = sourceNode.data("name") || "Unknown";
+  const targetName = targetNode.data("name") || "Unknown";
+
+  const confirmed = window.confirm(
+    `Delete transition: ${sourceName} -> ${targetName}?`,
+  );
+  if (!confirmed) return;
+
+  edge.remove();
+
+  // Remove orphan nodes so graph quality remains clean after deletions.
+  [sourceNode, targetNode].forEach((node) => {
+    if (!node.empty() && node.connectedEdges().length === 0) {
+      node.remove();
+    }
+  });
+
+  applyGraphQualityFixes();
+  runGraphLayout(true);
+  saveGraphToFirebase();
+  showDetails('<p style="color:#b3b3b3;">Transition deleted.</p>');
+}
+
 function highlightNodeConnections(node) {
   if (!cy || !node || node.empty()) return;
 
@@ -474,9 +515,15 @@ function initGraph(data) {
 
   cy.on("tap", "edge", function (evt) {
     const edge = evt.target;
-    const sourceData = cy.getElementById(edge.data("source")).data("name");
-    const targetData = cy.getElementById(edge.data("target")).data("name");
+    const sourceData = escapeHtml(
+      cy.getElementById(edge.data("source")).data("name") || "Unknown",
+    );
+    const targetData = escapeHtml(
+      cy.getElementById(edge.data("target")).data("name") || "Unknown",
+    );
     const sc = edge.data("screenshot");
+    const edgeId = escapeHtml(edge.id());
+    const canDelete = isEditorSignedIn();
 
     let html = `
             <h3>Transition</h3>
@@ -486,7 +533,13 @@ function initGraph(data) {
         `;
 
     if (sc) {
-      html += `<img src="${sc}" alt="Transition Screenshot">`;
+      html += `<img src="${escapeHtml(sc)}" alt="Transition Screenshot">`;
+    }
+
+    if (canDelete) {
+      html += `<button type="button" class="btn-danger-subtle" data-delete-edge-id="${edgeId}">Delete This Transition</button>`;
+    } else {
+      html += `<p style="font-size:0.8rem;color:#b3b3b3;margin-top:10px;">Sign in with Google to delete transitions.</p>`;
     }
 
     showDetails(html);
@@ -514,8 +567,32 @@ function showDetails(htmlContent) {
 function setupEvents() {
   const fileInput = document.getElementById("screenshot-file");
   const fileLabel = document.getElementById("file-preview-name");
+  const detailsContent = document.getElementById("details-content");
+  const detailsClearBtn = document.getElementById("details-clear-highlight-btn");
 
   fileLabel.addEventListener("click", () => fileInput.click());
+
+  if (detailsClearBtn) {
+    detailsClearBtn.addEventListener("click", () => {
+      clearGraphHighlight();
+      requestGraphResize(false);
+    });
+  }
+
+  if (detailsContent) {
+    detailsContent.addEventListener("click", (event) => {
+      const deleteButton = event.target.closest("[data-delete-edge-id]");
+      if (!deleteButton) return;
+
+      if (!isEditorSignedIn()) {
+        alert("Please sign in with Google to edit the graph.");
+        return;
+      }
+
+      const edgeId = deleteButton.getAttribute("data-delete-edge-id");
+      deleteTransition(edgeId);
+    });
+  }
 
   fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
@@ -710,6 +787,24 @@ function setupFirebase() {
   const mainPanel = document.getElementById("main-panel");
   const loginForm = document.getElementById("login-form-container");
   const loggedInUi = document.getElementById("logged-in-container");
+  const dangerToggleBtn = document.getElementById("danger-toggle-btn");
+  const dangerZoneContent = document.getElementById("danger-zone-content");
+  const resetConfirmInput = document.getElementById("reset-confirm-input");
+  const resetGraphBtn = document.getElementById("reset-graph-btn");
+
+  if (dangerToggleBtn && dangerZoneContent) {
+    dangerToggleBtn.addEventListener("click", () => {
+      const willShow = dangerZoneContent.style.display === "none";
+      dangerZoneContent.style.display = willShow ? "block" : "none";
+    });
+  }
+
+  if (resetConfirmInput && resetGraphBtn) {
+    resetConfirmInput.addEventListener("input", () => {
+      const isReady = resetConfirmInput.value.trim().toUpperCase() === "RESET";
+      resetGraphBtn.disabled = !isReady;
+    });
+  }
 
   firebase.auth().onAuthStateChanged((user) => {
     detachGraphListener();
@@ -732,6 +827,16 @@ function setupFirebase() {
       loginForm.style.display = "block";
       loggedInUi.style.display = "none";
       clearGraph();
+    }
+
+    if (resetConfirmInput) {
+      resetConfirmInput.value = "";
+    }
+    if (resetGraphBtn) {
+      resetGraphBtn.disabled = true;
+    }
+    if (dangerZoneContent) {
+      dangerZoneContent.style.display = "none";
     }
   });
 
@@ -763,8 +868,17 @@ function setupFirebase() {
       return;
     }
 
+    const typed = document
+      .getElementById("reset-confirm-input")
+      .value.trim()
+      .toUpperCase();
+    if (typed !== "RESET") {
+      alert("Type RESET in Advanced Data Controls first.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "This will permanently delete your graph data from the cloud for this account. Continue?",
+      "Final warning: this permanently deletes your cloud graph for this account. Continue?",
     );
     if (!confirmed) return;
 
@@ -773,6 +887,12 @@ function setupFirebase() {
       .database()
       .ref(userGraphPath)
       .remove()
+      .then(() => {
+        const confirmInput = document.getElementById("reset-confirm-input");
+        const button = document.getElementById("reset-graph-btn");
+        if (confirmInput) confirmInput.value = "";
+        if (button) button.disabled = true;
+      })
       .catch((err) => {
         console.error("Reset graph failed:", err);
         alert("Could not reset graph. Please try again.");

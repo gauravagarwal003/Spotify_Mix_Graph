@@ -66,6 +66,36 @@ header p {
     margin-bottom: 20px;
 }
 
+#how-it-works-panel {
+    flex: 0 0 auto;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.info-card {
+    border: 1px solid #2e2e2e;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #141414;
+}
+
+.info-card h3 {
+    margin: 0 0 6px;
+    font-size: 0.83rem;
+    color: #e6e6e6;
+}
+
+.info-card p {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--text-sec);
+    line-height: 1.4;
+}
+
 #add-transition-form {
     display: flex;
     flex-direction: column;
@@ -252,6 +282,72 @@ button:active {
 }
 .btn-outline:hover {
     border-color: var(--text-primary);
+}
+
+.btn-subtle {
+    background: transparent;
+    color: #8f8f8f;
+    border: 1px dashed #444;
+    font-weight: 600;
+    font-size: 0.8rem;
+    border-radius: 10px;
+    padding: 9px;
+}
+
+.btn-subtle:hover {
+    color: #b8b8b8;
+    border-color: #666;
+}
+
+.btn-danger-subtle {
+    margin-top: 10px;
+    background: transparent;
+    color: #cb7676;
+    border: 1px solid #644040;
+    border-radius: 10px;
+    padding: 10px;
+    font-size: 0.83rem;
+    font-weight: 700;
+}
+
+.btn-danger-subtle:hover {
+    border-color: #915d5d;
+    color: #df9797;
+}
+
+.btn-danger-subtle:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(20%);
+}
+
+.danger-zone {
+    margin-top: 16px;
+    padding-top: 10px;
+    border-top: 1px solid #2a2a2a;
+}
+
+.danger-help {
+    margin-top: 10px;
+    margin-bottom: 8px;
+    font-size: 0.75rem;
+    color: #caa0a0;
+}
+
+.danger-label {
+    font-size: 0.74rem;
+    color: #a6a6a6;
+    display: block;
+    margin-bottom: 6px;
+}
+
+#reset-confirm-input {
+    font-size: 0.8rem;
+    padding: 10px;
+}
+
+#details-clear-highlight-btn {
+    margin-top: 14px;
 }
 
 #graph-container {
