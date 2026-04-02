@@ -21,262 +21,201 @@
   </head>
   <body>
     <div id="app">
-      <aside id="sidebar">
-        <header>
-          <h1>Spotify Transitions</h1>
-          <p>Map your track journeys.</p>
-        </header>
-
-        <div id="spotify-auth" class="panel">
-          <h2>Connect Spotify</h2>
-          <p
-            style="
-              font-size: 0.85rem;
-              color: var(--text-sec);
-              margin-bottom: 15px;
-            "
-          >
-            Spotify login is only used to search real tracks and album artwork.
-            We never edit your Spotify library.
-          </p>
-          <button id="login-btn" class="btn-green">Login to Spotify</button>
-        </div>
-
-        <div class="panel" id="how-it-works-panel">
-          <h2>Why Login + How It Works</h2>
-          <div class="info-grid">
-            <div class="info-card">
-              <h3>1) Spotify Login</h3>
-              <p>
-                Needed only for searching official track metadata (name, artist,
-                artwork, duration).
-              </p>
-            </div>
-            <div class="info-card">
-              <h3>2) Google Login</h3>
-              <p>
-                Needed to protect edits. Your graph is stored in Firebase under
-                your account only.
-              </p>
-            </div>
-            <div class="info-card">
-              <h3>3) Add and Explore</h3>
-              <p>
-                Add transitions, click songs to inspect incoming/outgoing paths,
-                and search the graph from the sidebar.
-              </p>
-            </div>
-            <div class="info-card">
-              <h3>4) Data Ownership</h3>
-              <p>
-                Your graph auto-saves to cloud for your signed-in Google account.
-                Sign out to lock editing.
-              </p>
-            </div>
+      <!-- Top Header with Navigation -->
+      <header id="top-header">
+        <div class="header-content">
+          <div class="header-left">
+            <h1>Spotify Transitions</h1>
           </div>
+          <nav class="header-nav">
+            <button class="nav-btn active" data-tab="add">Add Transition</button>
+            <button class="nav-btn" data-tab="search">Find Song</button>
+            <button class="nav-btn" data-tab="info">Info</button>
+            <button class="nav-btn" data-tab="account">Account</button>
+          </nav>
         </div>
+      </header>
 
-        <div class="panel" id="main-panel" style="display: none">
-          <div
-            style="
-              display: flex;
-              justify-content: space-between;
-              align-items: baseline;
-            "
-          >
-            <h2>Add Transition</h2>
-            <span
-              id="spotify-status"
-              style="font-size: 0.75rem; color: var(--spotify-green)"
-              >Spotify Connected |
-              <a
-                href="#"
-                id="spotify-logout"
-                style="color: var(--text-sec); text-decoration: underline"
-                >Logout</a
-              ></span
-            >
-          </div>
-          <form id="add-transition-form">
-            <div class="input-group">
-              <label>Track 1 (From)</label>
-              <input
-                type="text"
-                id="node1-search"
-                placeholder="Search track name..."
-                autocomplete="off"
-                required
-              />
-              <div id="node1-results" class="autocomplete-results"></div>
-              <input type="hidden" id="node1-data" />
-            </div>
-
-            <div class="input-group">
-              <label>Track 2 (To)</label>
-              <input
-                type="text"
-                id="node2-search"
-                placeholder="Search track name..."
-                autocomplete="off"
-                required
-              />
-              <div id="node2-results" class="autocomplete-results"></div>
-              <input type="hidden" id="node2-data" />
-            </div>
-
-            <div class="input-group">
-              <label>Transition Screenshot (Optional)</label>
-              <input type="file" id="screenshot-file" accept="image/*" />
-              <div class="file-preview" id="file-preview-name">
-                No file selected
-              </div>
-            </div>
-
-            <button type="submit" class="btn-green">Add Transition</button>
-            <!-- <button type="button" class="btn-outline" id="export-btn" style="margin-top: 10px;">Sync Graph to Cloud</button> -->
-          </form>
-        </div>
-
-        <div class="panel" id="admin-panel">
-          <h2>Admin Login</h2>
-          <div id="login-form-container">
-            <p
-              style="
-                font-size: 0.8rem;
-                color: var(--text-sec);
-                margin-bottom: 15px;
-              "
-            >
-              Login to edit and sync your private graph. Signed-out users can view
-              but cannot change data.
-            </p>
-            <button
-              type="button"
-              id="google-login-btn"
-              class="btn-green"
-              style="
-                background: #ffffff;
-                color: #000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 10px;
-                margin-top: 15px;
-                padding: 10px;
-              "
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 18 18"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M17.64 9.2045c0-.6381-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9086c1.7018-1.5668 2.6836-3.874 2.6836-6.615z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M9 18c2.43 0 4.4673-.806 5.9564-2.1805l-2.9086-2.2581c-.8059.54-1.8368.859-3.0478.859-2.344 0-4.3282-1.5831-5.036-3.7104H.9574v2.3318C2.4382 15.9832 5.4818 18 9 18z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M3.964 10.71c-.18-.54-.2822-1.1168-.2822-1.71s.1023-1.17.2823-1.71V4.9582H.9574C.3477 6.1363 0 7.5136 0 9s.3477 2.8636.9574 4.0418l3.0066-2.3318z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M9 3.5795c1.3214 0 2.5077.4541 3.4405 1.346L14.9086.9575C13.4632-.3845 11.426 0 9 0 5.4818 0 2.4382 2.0168.9574 4.9582l3.0066 2.3318C4.6718 5.1631 6.656 3.5795 9 3.5795z"
-                  fill="#EA4335"
-                />
-              </svg>
-              Sign in with Google
-            </button>
-            <p
-              id="auth-error"
-              style="
-                color: #f44336;
-                font-size: 0.8rem;
-                margin-top: 10px;
-                display: none;
-              "
-            ></p>
-          </div>
-          <div id="logged-in-container" style="display: none">
-            <p
-              style="
-                font-size: 0.85rem;
-                color: var(--spotify-green);
-                font-weight: bold;
-              "
-            >
-              ✓ Logged in. You can edit the graph. Changes auto-save.
-            </p>
-            <button
-              type="button"
-              id="fb-logout-btn"
-              class="btn-outline"
-              style="margin-top: 10px; padding: 10px"
-            >
-              Logout
-            </button>
-            <div id="danger-zone" class="danger-zone">
-              <button type="button" id="danger-toggle-btn" class="btn-subtle">
-                Advanced Data Controls
-              </button>
-              <div id="danger-zone-content" style="display: none">
-                <p class="danger-help">
-                  Reset permanently deletes your current account graph.
+      <!-- Main Content Area -->
+      <main id="main-content">
+        <!-- Sidebar with content panels that change based on tab -->
+        <aside id="sidebar">
+          <!-- Add Transition Tab -->
+          <div class="tab-content active" data-tab="add">
+            <div class="panel">
+              <div id="spotify-auth">
+                <h2>Connect Spotify</h2>
+                <p style="font-size: 0.85rem; color: var(--text-sec); margin-bottom: 15px;">
+                  Spotify login is only used to search real tracks and album artwork.
+                  We never edit your Spotify library.
                 </p>
-                <label for="reset-confirm-input" class="danger-label"
-                  >Type RESET to enable:</label
-                >
-                <input
-                  type="text"
-                  id="reset-confirm-input"
-                  placeholder="Type RESET"
-                  autocomplete="off"
-                />
-                <button
-                  type="button"
-                  id="reset-graph-btn"
-                  class="btn-danger-subtle"
-                  disabled
-                >
-                  Permanently Reset My Graph
-                </button>
+                <button id="login-btn" class="btn-green">Login to Spotify</button>
+              </div>
+
+              <div id="main-panel" style="display: none; margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+                  <h2>Add Transition</h2>
+                  <span id="spotify-status" style="font-size: 0.75rem; color: var(--spotify-green); display: none;">
+                    ✓ Spotify Connected |
+                    <a href="#" id="spotify-logout" style="color: var(--text-sec); text-decoration: underline;">Logout</a>
+                  </span>
+                </div>
+                <form id="add-transition-form">
+                  <div class="input-group">
+                    <label>Track 1 (From)</label>
+                    <input type="text" id="node1-search" placeholder="Search track name..." autocomplete="off" required />
+                    <div id="node1-results" class="autocomplete-results"></div>
+                    <input type="hidden" id="node1-data" />
+                  </div>
+
+                  <div class="input-group">
+                    <label>Track 2 (To)</label>
+                    <input type="text" id="node2-search" placeholder="Search track name..." autocomplete="off" required />
+                    <div id="node2-results" class="autocomplete-results"></div>
+                    <input type="hidden" id="node2-data" />
+                  </div>
+
+                  <div class="input-group">
+                    <label>Transition Screenshot (Optional)</label>
+                    <input type="file" id="screenshot-file" accept="image/*" />
+                    <div class="file-preview" id="file-preview-name">No file selected</div>
+                  </div>
+
+                  <button type="submit" class="btn-green">Add Transition</button>
+                </form>
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="panel" id="details-panel" style="display: none">
-          <div id="details-content"></div>
-          <button type="button" class="btn-outline" id="details-clear-highlight-btn">
-            Deselect Highlight
-          </button>
-        </div>
-
-        <div class="panel" id="graph-search-panel">
-          <h2>Find Song In Graph</h2>
-          <div class="input-group">
-            <label for="graph-search-input">Song Name or Artist</label>
-            <input
-              type="text"
-              id="graph-search-input"
-              placeholder="Type to find a song in the graph..."
-              autocomplete="off"
-            />
-            <div id="graph-search-results" class="autocomplete-results"></div>
+          <!-- Find Song Tab -->
+          <div class="tab-content" data-tab="search">
+            <div class="panel">
+              <h2>Find Song In Graph</h2>
+              <div class="input-group">
+                <label for="graph-search-input">Song Name or Artist</label>
+                <input type="text" id="graph-search-input" placeholder="Type to find a song in the graph..." autocomplete="off" />
+                <div id="graph-search-results" class="autocomplete-results"></div>
+              </div>
+              <button type="button" class="btn-outline" id="graph-search-clear-btn" style="margin-top: 12px;">
+                Deselect Highlight
+              </button>
+              <p id="graph-search-help" class="graph-search-help">
+                Select a song to highlight incoming and outgoing connections.
+              </p>
+            </div>
           </div>
-          <button type="button" class="btn-outline" id="graph-search-clear-btn">
-            Deselect Highlight
-          </button>
-          <p id="graph-search-help" class="graph-search-help">
-            Select a song to highlight incoming and outgoing connections.
-          </p>
-        </div>
-      </aside>
 
-      <main id="graph-container"></main>
+          <!-- Info Tab -->
+          <div class="tab-content" data-tab="info">
+            <div class="panel">
+              <h2>Why Login + How It Works</h2>
+              <div class="info-grid">
+                <div class="info-card">
+                  <h3>1) Spotify Login</h3>
+                  <p>Needed only for searching official track metadata (name, artist, artwork, duration).</p>
+                </div>
+                <div class="info-card">
+                  <h3>2) Google Login</h3>
+                  <p>Needed to protect edits. Your graph is stored in Firebase under your account only.</p>
+                </div>
+                <div class="info-card">
+                  <h3>3) Add and Explore</h3>
+                  <p>Add transitions, click songs to inspect incoming/outgoing paths, and search the graph.</p>
+                </div>
+                <div class="info-card">
+                  <h3>4) Data Ownership</h3>
+                  <p>Your graph auto-saves to cloud for your signed-in Google account. Sign out to lock editing.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Account Tab -->
+          <div class="tab-content" data-tab="account">
+            <div class="panel">
+              <h2>Account</h2>
+              <div id="login-form-container">
+                <p style="font-size: 0.8rem; color: var(--text-sec); margin-bottom: 15px;">
+                  Login to edit and sync your private graph. Signed-out users can view but cannot change data.
+                </p>
+                <button type="button" id="google-login-btn" class="btn-green" style="background: #ffffff; color: #000; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px; padding: 10px;">
+                  <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.64 9.2045c0-.6381-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9086c1.7018-1.5668 2.6836-3.874 2.6836-6.615z" fill="#4285F4" />
+                    <path d="M9 18c2.43 0 4.4673-.806 5.9564-2.1805l-2.9086-2.2581c-.8059.54-1.8368.859-3.0478.859-2.344 0-4.3282-1.5831-5.036-3.7104H.9574v2.3318C2.4382 15.9832 5.4818 18 9 18z" fill="#34A853" />
+                    <path d="M3.964 10.71c-.18-.54-.2822-1.1168-.2822-1.71s.1023-1.17.2823-1.71V4.9582H.9574C.3477 6.1363 0 7.5136 0 9s.3477 2.8636.9574 4.0418l3.0066-2.3318z" fill="#FBBC05" />
+                    <path d="M9 3.5795c1.3214 0 2.5077.4541 3.4405 1.346L14.9086.9575C13.4632-.3845 11.426 0 9 0 5.4818 0 2.4382 2.0168.9574 4.9582l3.0066 2.3318C4.6718 5.1631 6.656 3.5795 9 3.5795z" fill="#EA4335" />
+                  </svg>
+                  Sign in with Google
+                </button>
+                <p id="auth-error" style="color: #f44336; font-size: 0.8rem; margin-top: 10px; display: none;"></p>
+              </div>
+              <div id="logged-in-container" style="display: none">
+                <p style="font-size: 0.85rem; color: var(--spotify-green); font-weight: bold;">✓ Logged in. You can edit the graph. Changes auto-save.</p>
+                <button type="button" id="fb-logout-btn" class="btn-outline" style="margin-top: 10px; padding: 10px">Logout</button>
+                <div id="danger-zone" class="danger-zone">
+                  <button type="button" id="danger-toggle-btn" class="btn-subtle">Advanced Data Controls</button>
+                  <div id="danger-zone-content" style="display: none">
+                    <p class="danger-help">Reset permanently deletes your current account graph.</p>
+                    <label for="reset-confirm-input" class="danger-label">Type RESET to enable:</label>
+                    <input type="text" id="reset-confirm-input" placeholder="Type RESET" autocomplete="off" />
+                    <button type="button" id="reset-graph-btn" class="btn-danger-subtle" disabled>Permanently Reset My Graph</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Graph Container -->
+        <main id="graph-container"></main>
+      </main>
+
+      <!-- Info Modal (for song/edge details) -->
+      <div id="info-modal" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 id="modal-title">Details</h3>
+            <button class="modal-close" id="modal-close-btn">&times;</button>
+          </div>
+          <div class="modal-body" id="modal-body"></div>
+          <div class="modal-footer" id="modal-footer"></div>
+        </div>
+        <div class="modal-backdrop"></div>
+      </div>
+
+      <!-- First-time Visitor Modal -->
+      <div id="welcome-modal" class="modal">
+        <div class="modal-content modal-welcome">
+          <div class="modal-header">
+            <h2>Welcome to Spotify Transitions</h2>
+            <button class="modal-close" id="welcome-close-btn">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="info-grid">
+              <div class="info-card">
+                <h3>1) Spotify Login</h3>
+                <p>Needed only for searching official track metadata (name, artist, artwork, duration).</p>
+              </div>
+              <div class="info-card">
+                <h3>2) Google Login</h3>
+                <p>Needed to protect edits. Your graph is stored in Firebase under your account only.</p>
+              </div>
+              <div class="info-card">
+                <h3>3) Add and Explore</h3>
+                <p>Add transitions, click songs to inspect incoming/outgoing paths, and search the graph.</p>
+              </div>
+              <div class="info-card">
+                <h3>4) Data Ownership</h3>
+                <p>Your graph auto-saves to cloud for your signed-in Google account. Sign out to lock editing.</p>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-green" id="welcome-close-btn-2">Get Started</button>
+          </div>
+        </div>
+        <div class="modal-backdrop"></div>
+      </div>
     </div>
 
     <script src="app.js"></script>

@@ -51,6 +51,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupAutocomplete("node2");
   setupGraphSearch();
 
+  // NEW: Setup UI improvements
+  setupTabNavigation();
+  setupWelcomeModal();
+  setupDropdownCloseOnClickOutside();
+  updateSpotifyStatusDisplay();
+  updateShowDetailsForModal();
+
+  // Setup modal close buttons
+  const modalCloseBtn = document.getElementById('modal-close-btn');
+  if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', () => {
+      hideModal(document.getElementById('info-modal'));
+      clearGraphHighlight();
+    });
+  }
+
   if (typeof firebase !== "undefined" && firebase.apps.length > 0) {
     setupFirebase();
   } else {
@@ -1076,6 +1092,12 @@ function setupAutocomplete(nodeId) {
         const tracks =
           data.tracks && data.tracks.items ? data.tracks.items : [];
         renderTracks(tracks);
+        
+        // Verify Spotify token works and show status
+        const statusSpan = document.getElementById('spotify-status');
+        if (statusSpan) {
+          statusSpan.style.display = 'inline';
+        }
       } catch (err) {
         console.error(err);
       }
@@ -1324,3 +1346,188 @@ async function checkSpotifyAuth() {
     });
   }
 }
+
+// ==========================================
+// TAB SWITCHING AND UI IMPROVEMENTS
+// ==========================================
+
+function setupTabNavigation() {
+  const navBtns = document.querySelectorAll('.nav-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  navBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tabName = btn.getAttribute('data-tab');
+      
+      // Remove active class from all buttons
+      navBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // Hide all tab contents
+      tabContents.forEach(tab => tab.classList.remove('active'));
+      
+      // Show selected tab
+      const activeTab = document.querySelector(`.tab-content[data-tab="${tabName}"]`);
+      if (activeTab) {
+        activeTab.classList.add('active');
+      }
+    });
+  });
+}
+
+// MODAL FUNCTIONS
+function showModal(modal) {
+  modal.classList.add('show');
+}
+
+function hideModal(modal) {
+  modal.classList.remove('show');
+}
+
+function showInfoModal(content, isEdge = false, edgeData = null) {
+  const modal = document.getElementById('info-modal');
+  const title = document.getElementById('modal-title');
+  const body = document.getElementById('modal-body');
+  const footer = document.getElementById('modal-footer');
+  
+  if (isEdge) {
+    title.textContent = 'Transition';
+    footer.innerHTML = `
+      <button type="button" class="btn-danger-subtle" id="delete-edge-btn">Delete Transition</button>
+      <button type="button" class="btn-outline" style="flex: 0 0 auto;">Close</button>
+    `;
+    
+    // Add delete handler
+    document.getElementById('delete-edge-btn').addEventListener('click', () => {
+      if (edgeData && cy) {
+        cy.getElementById(edgeData.id).remove();
+        saveGraphToFirebase();
+        hideModal(modal);
+      }
+    });
+  } else {
+    title.textContent = 'Song Details';
+    footer.innerHTML = `
+      <button type="button" class="btn-outline">Close</button>
+    `;
+  }
+  
+  body.innerHTML = content;
+  
+  // Close button handler
+  const closeBtn = footer.querySelector('.btn-outline');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      hideModal(modal);
+      clearGraphHighlight();
+    });
+  }
+  
+  showModal(modal);
+}
+
+// UPDATE showDetails to use modal
+function updateShowDetailsForModal() {
+  // Override the graph click handlers
+  if (!cy) return;
+  
+  cy.off('tap', 'node');
+  cy.off('tap', 'edge');
+  
+  cy.on('tap', 'node', function (evt) {
+    const d = evt.target.data();
+    const htmlContent = `
+      <img src="${d.cover}" alt="Cover" style="width:100%">
+      <h3 style="margin:12px 0 4px">${d.name}</h3>
+      <p>${d.artist}</p>
+    `;
+    showInfoModal(htmlContent, false);
+  });
+
+  cy.on('tap', 'edge', function (evt) {
+    const edge = evt.target;
+    const sourceData = cy.getElementById(edge.data('source')).data('name');
+    const targetData = cy.getElementById(edge.data('target')).data('name');
+    const sc = edge.data('screenshot');
+
+    let html = `
+      <h3>Transition</h3>
+      <p>${sourceData}</p>
+      <p style="text-align:center;color:#1db954;margin:-4px 0;">⬇</p>
+      <p>${targetData}</p>
+    `;
+
+    if (sc) {
+      html += `<img src="${sc}" alt="Transition Screenshot">`;
+    }
+
+    showInfoModal(html, true, { id: edge.id() });
+  });
+}
+
+// FIRST-TIME VISITOR POPUP
+function setupWelcomeModal() {
+  const hasVisitedBefore = localStorage.getItem('spotify_mix_visited');
+  const welcomeModal = document.getElementById('welcome-modal');
+  
+  if (!hasVisitedBefore && welcomeModal) {
+    showModal(welcomeModal);
+    localStorage.setItem('spotify_mix_visited', 'true');
+  }
+  
+  // Close button handlers
+  const closeBtn = document.getElementById('welcome-close-btn');
+  const getStartedBtn = document.getElementById('welcome-close-btn-2');
+  
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      hideModal(welcomeModal);
+    });
+  }
+  
+  if (getStartedBtn) {
+    getStartedBtn.addEventListener('click', () => {
+      hideModal(welcomeModal);
+    });
+  }
+}
+
+// CLICK-OUTSIDE DROPDOWN CLOSE
+function setupDropdownCloseOnClickOutside() {
+  document.addEventListener('click', (event) => {
+    const autocompleteResults = document.querySelectorAll('.autocomplete-results');
+    
+    autocompleteResults.forEach(resultsDiv => {
+      // Check if click is outside this results div and its associated input
+      const input = resultsDiv.previousElementSibling;
+      
+      if (!resultsDiv.contains(event.target) && !input.contains(event.target)) {
+        resultsDiv.style.display = 'none';
+      }
+    });
+    
+    // Also handle graph search results
+    const graphSearchResults = document.getElementById('graph-search-results');
+    const graphSearchInput = document.getElementById('graph-search-input');
+    if (graphSearchResults && !graphSearchResults.contains(event.target) && event.target !== graphSearchInput) {
+      graphSearchResults.style.display = 'none';
+    }
+  });
+}
+
+// FIX SPOTIFY LOGIN STATUS - Only show as connected when actually connected
+function updateSpotifyStatusDisplay() {
+  const statusSpan = document.getElementById('spotify-status');
+  const tokenToUse = spotifyAccessToken || localStorage.getItem('spotify_access_token');
+  
+  // Always hide initially - only show after verification
+  if (statusSpan) {
+    statusSpan.style.display = 'none';
+  }
+  
+  // Don't automatically show - wait for successful API call
+  // Token could be stale from previous session
+}
+
+// Re-export the updateShowDetailsForModal so it's called after graph initializes
+// (Already handled in DOMContentLoaded now)
