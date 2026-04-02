@@ -57,15 +57,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupDropdownCloseOnClickOutside();
   updateSpotifyStatusDisplay();
   updateShowDetailsForModal();
-
-  // Setup modal close buttons
-  const modalCloseBtn = document.getElementById('modal-close-btn');
-  if (modalCloseBtn) {
-    modalCloseBtn.addEventListener('click', () => {
-      hideModal(document.getElementById('info-modal'));
-      clearGraphHighlight();
-    });
-  }
+  setupInfoModalDismissHandlers();
 
   if (typeof firebase !== "undefined" && firebase.apps.length > 0) {
     setupFirebase();
@@ -318,6 +310,22 @@ function clearGraphHighlight() {
   );
 }
 
+function clearSearchSidebarSelection() {
+  const searchInput = document.getElementById("graph-search-input");
+  const detailsPanel = document.getElementById("details-panel");
+  const detailsContent = document.getElementById("details-content");
+
+  if (searchInput) {
+    searchInput.value = "";
+  }
+  if (detailsPanel) {
+    detailsPanel.style.display = "none";
+  }
+  if (detailsContent) {
+    detailsContent.innerHTML = "";
+  }
+}
+
 function isEditorSignedIn() {
   return Boolean(
     typeof firebase !== "undefined" &&
@@ -381,20 +389,18 @@ function highlightNodeConnections(node) {
 function showNodeDetails(node) {
   if (!node || node.empty()) return;
   const d = node.data();
-  const incomingNodes = node.incomers("edge").sources();
-  const outgoingNodes = node.outgoers("edge").targets();
-  const incomingNames = listConnectedSongNames(incomingNodes);
-  const outgoingNames = listConnectedSongNames(outgoingNodes);
+  const incomingNodes = buildNodeListFromCollection(node.incomers("edge").sources());
+  const outgoingNodes = buildNodeListFromCollection(node.outgoers("edge").targets());
 
   showDetails(`
-      <img src="${escapeHtml(d.cover)}" alt="Cover" style="width:100%">
+      <img src="${escapeHtml(d.cover)}" alt="Cover" style="width:100%; border-radius: 10px;">
       <h3 style="margin:12px 0 4px">${escapeHtml(d.name)}</h3>
       <p>${escapeHtml(d.artist)}</p>
-      <p style="margin-top:8px;"><strong>${incomingNames.length}</strong> incoming, <strong>${outgoingNames.length}</strong> outgoing</p>
+      <p style="margin-top:8px;"><strong>${incomingNodes.length}</strong> incoming, <strong>${outgoingNodes.length}</strong> outgoing</p>
       <p style="margin-top:10px;"><strong>Incoming From</strong></p>
-      <ul style="margin:0; padding-left:18px;">${buildConnectionListHtml(incomingNames)}</ul>
+      <ul>${buildRelatedSongListHtml(incomingNodes)}</ul>
       <p style="margin-top:10px;"><strong>Outgoing To</strong></p>
-      <ul style="margin:0; padding-left:18px;">${buildConnectionListHtml(outgoingNames)}</ul>
+      <ul>${buildRelatedSongListHtml(outgoingNodes)}</ul>
     `);
 }
 
@@ -564,6 +570,7 @@ function initGraph(data) {
   cy.on("tap", (evt) => {
     if (evt.target === cy) {
       clearGraphHighlight();
+      clearSearchSidebarSelection();
     }
   });
 
@@ -576,8 +583,12 @@ function initGraph(data) {
 
 function showDetails(htmlContent) {
   const p = document.getElementById("details-panel");
+  if (!p) return;
   p.style.display = "block";
-  document.getElementById("details-content").innerHTML = htmlContent;
+  const detailsContent = document.getElementById("details-content");
+  if (detailsContent) {
+    detailsContent.innerHTML = htmlContent;
+  }
 }
 
 function setupEvents() {
@@ -597,6 +608,16 @@ function setupEvents() {
 
   if (detailsContent) {
     detailsContent.addEventListener("click", (event) => {
+      const relatedButton = event.target.closest("[data-related-node-id]");
+      if (relatedButton && cy) {
+        const nodeId = relatedButton.getAttribute("data-related-node-id");
+        const nextNode = cy.getElementById(nodeId);
+        if (!nextNode.empty()) {
+          openSongInSearchTab(nextNode);
+        }
+        return;
+      }
+
       const deleteButton = event.target.closest("[data-delete-edge-id]");
       if (!deleteButton) return;
 
@@ -1212,6 +1233,14 @@ function setupGraphSearch() {
     searchInput.value = "";
     hideResults();
     clearGraphHighlight();
+    const detailsPanel = document.getElementById("details-panel");
+    const detailsContent = document.getElementById("details-content");
+    if (detailsPanel) {
+      detailsPanel.style.display = "none";
+    }
+    if (detailsContent) {
+      detailsContent.innerHTML = "";
+    }
     requestGraphResize(false);
   });
 }
@@ -1375,55 +1404,164 @@ function setupTabNavigation() {
   });
 }
 
+function switchToTab(tabName) {
+  const navBtns = document.querySelectorAll('.nav-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  navBtns.forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+  });
+
+  tabContents.forEach((tab) => {
+    tab.classList.toggle('active', tab.getAttribute('data-tab') === tabName);
+  });
+}
+
 // MODAL FUNCTIONS
 function showModal(modal) {
+  if (!modal) return;
   modal.classList.add('show');
 }
 
 function hideModal(modal) {
+  if (!modal) return;
   modal.classList.remove('show');
+
+  if (modal.id === 'info-modal') {
+    const content = modal.querySelector('.modal-content');
+    const body = document.getElementById('modal-body');
+    const footer = document.getElementById('modal-footer');
+    const close = document.getElementById('modal-close-btn');
+
+    if (content) {
+      content.classList.remove('edge-modal');
+    }
+    if (body) {
+      body.innerHTML = '';
+    }
+    if (footer) {
+      footer.innerHTML = '';
+    }
+    if (close) {
+      close.style.display = 'none';
+    }
+  }
 }
 
-function showInfoModal(content, isEdge = false, edgeData = null) {
+function setupInfoModalDismissHandlers() {
   const modal = document.getElementById('info-modal');
+  if (!modal) return;
+
+  const backdrop = modal.querySelector('.modal-backdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', () => hideModal(modal));
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (!modal.classList.contains('show')) return;
+    hideModal(modal);
+  });
+}
+
+function showEdgeModal(edge) {
+  if (!edge || edge.empty()) return;
+
+  const modal = document.getElementById('info-modal');
+  const content = modal?.querySelector('.modal-content');
   const title = document.getElementById('modal-title');
   const body = document.getElementById('modal-body');
   const footer = document.getElementById('modal-footer');
-  
-  if (isEdge) {
-    title.textContent = 'Transition';
-    footer.innerHTML = `
-      <button type="button" class="btn-danger-subtle" id="delete-edge-btn">Delete Transition</button>
-      <button type="button" class="btn-outline" style="flex: 0 0 auto;">Close</button>
-    `;
-    
-    // Add delete handler
-    document.getElementById('delete-edge-btn').addEventListener('click', () => {
-      if (edgeData && cy) {
-        cy.getElementById(edgeData.id).remove();
-        saveGraphToFirebase();
+  const close = document.getElementById('modal-close-btn');
+
+  if (!modal || !content || !title || !body || !footer) return;
+
+  const sourceName = escapeHtml(
+    cy.getElementById(edge.data('source')).data('name') || 'Unknown',
+  );
+  const targetName = escapeHtml(
+    cy.getElementById(edge.data('target')).data('name') || 'Unknown',
+  );
+  const screenshot = edge.data('screenshot');
+  const canDelete = isEditorSignedIn();
+
+  content.classList.add('edge-modal');
+  title.textContent = 'Transition';
+  if (close) {
+    close.style.display = 'none';
+  }
+
+  body.innerHTML = `
+    <h3 class="transition-modal-title">Transition</h3>
+    <div class="transition-flow">
+      <div class="transition-track-card">
+        <span class="transition-track-label">From</span>
+        <p class="transition-track-name">${sourceName}</p>
+      </div>
+      <div class="transition-flow-connector" aria-hidden="true"></div>
+      <div class="transition-track-card">
+        <span class="transition-track-label">To</span>
+        <p class="transition-track-name">${targetName}</p>
+      </div>
+    </div>
+    ${screenshot ? `<img class="transition-shot" src="${escapeHtml(screenshot)}" alt="Transition Screenshot">` : '<p class="transition-meta">No screenshot attached.</p>'}
+  `;
+
+  if (canDelete) {
+    footer.innerHTML = '<button type="button" class="btn-danger-subtle transition-delete-btn" id="delete-edge-btn">Delete Transition</button>';
+    const deleteBtn = document.getElementById('delete-edge-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        deleteTransition(edge.id());
         hideModal(modal);
-      }
-    });
+      });
+    }
   } else {
-    title.textContent = 'Song Details';
-    footer.innerHTML = `
-      <button type="button" class="btn-outline">Close</button>
-    `;
+    footer.innerHTML = '<p class="transition-meta">Sign in with Google to delete transitions.</p>';
   }
-  
-  body.innerHTML = content;
-  
-  // Close button handler
-  const closeBtn = footer.querySelector('.btn-outline');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      hideModal(modal);
-      clearGraphHighlight();
-    });
-  }
-  
+
   showModal(modal);
+}
+
+function buildNodeListFromCollection(nodeCollection) {
+  const uniqueById = new Map();
+  nodeCollection.forEach((node) => {
+    if (!node || node.empty()) return;
+    uniqueById.set(node.id(), {
+      id: node.id(),
+      name: node.data('name') || 'Unknown',
+      artist: node.data('artist') || '',
+    });
+  });
+  return Array.from(uniqueById.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function buildRelatedSongListHtml(items) {
+  if (items.length === 0) {
+    return '<li class="details-empty">None</li>';
+  }
+
+  return items
+    .map(
+      (item) =>
+        `<li><button type="button" class="related-song-btn" data-related-node-id="${escapeHtml(item.id)}">${escapeHtml(item.name)}${item.artist ? ` - ${escapeHtml(item.artist)}` : ''}</button></li>`,
+    )
+    .join('');
+}
+
+function openSongInSearchTab(node) {
+  if (!node || node.empty()) return;
+
+  switchToTab('search');
+  const data = node.data();
+  const searchInput = document.getElementById('graph-search-input');
+  if (searchInput) {
+    searchInput.value = `${data.name || ''}${data.artist ? ` - ${data.artist}` : ''}`;
+  }
+
+  highlightNodeConnections(node);
+  showNodeDetails(node);
+  focusNodeAndNeighborhood(node, 110);
 }
 
 // UPDATE showDetails to use modal
@@ -1435,33 +1573,11 @@ function updateShowDetailsForModal() {
   cy.off('tap', 'edge');
   
   cy.on('tap', 'node', function (evt) {
-    const d = evt.target.data();
-    const htmlContent = `
-      <img src="${d.cover}" alt="Cover" style="width:100%">
-      <h3 style="margin:12px 0 4px">${d.name}</h3>
-      <p>${d.artist}</p>
-    `;
-    showInfoModal(htmlContent, false);
+    openSongInSearchTab(evt.target);
   });
 
   cy.on('tap', 'edge', function (evt) {
-    const edge = evt.target;
-    const sourceData = cy.getElementById(edge.data('source')).data('name');
-    const targetData = cy.getElementById(edge.data('target')).data('name');
-    const sc = edge.data('screenshot');
-
-    let html = `
-      <h3>Transition</h3>
-      <p>${sourceData}</p>
-      <p style="text-align:center;color:#1db954;margin:-4px 0;">⬇</p>
-      <p>${targetData}</p>
-    `;
-
-    if (sc) {
-      html += `<img src="${sc}" alt="Transition Screenshot">`;
-    }
-
-    showInfoModal(html, true, { id: edge.id() });
+    showEdgeModal(evt.target);
   });
 }
 

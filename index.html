@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Track Mix Graph</title>
+    <title>Spotify Mix Graph</title>
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='22' fill='%23141d2a'/%3E%3Ccircle cx='28' cy='28' r='8' fill='%2336d6c8'/%3E%3Ccircle cx='68' cy='24' r='8' fill='%234f8ff7'/%3E%3Ccircle cx='50' cy='66' r='9' fill='%23ff9e6d'/%3E%3Cpath d='M35 33 L61 27 M63 31 L54 57 M44 59 L32 38' stroke='%23dce7fb' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='22' fill='%23141d2a'/%3E%3Ccircle cx='28' cy='28' r='8' fill='%232ed760'/%3E%3Ccircle cx='68' cy='24' r='8' fill='%231db954'/%3E%3Ccircle cx='50' cy='66' r='9' fill='%2327c85f'/%3E%3Cpath d='M35 33 L61 27 M63 31 L54 57 M44 59 L32 38' stroke='%23dce7fb' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="style.css" />
     <!-- Graph library -->
@@ -25,7 +25,7 @@
       <header id="top-header">
         <div class="header-content">
           <div class="header-left">
-            <h1>Track Transition Graph</h1>
+            <h1>Spotify Mix Graph</h1>
           </div>
           <nav class="header-nav">
             <button class="nav-btn active" data-tab="add">Add Transition</button>
@@ -102,6 +102,13 @@
               <p id="graph-search-help" class="graph-search-help">
                 Select a song to highlight incoming and outgoing connections.
               </p>
+              <section id="details-panel" class="details-panel" style="display: none;">
+                <div class="details-panel-header">
+                  <h3>Song Details</h3>
+                  <button type="button" class="btn-outline" id="details-clear-highlight-btn">Clear</button>
+                </div>
+                <div id="details-content"></div>
+              </section>
             </div>
           </div>
 
