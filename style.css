@@ -35,7 +35,7 @@ h1, h2, p, label {
 #top-header {
     background: var(--spotify-dark);
     border-bottom: 1px solid var(--spotify-light);
-    padding: 16px 24px;
+    padding: 16px 28px;
     flex-shrink: 0;
 }
 
@@ -43,30 +43,40 @@ h1, h2, p, label {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 24px;
     max-width: 100%;
 }
 
 .header-left h1 {
-    font-size: 1.5rem;
+    font-size: 1.45rem;
     font-weight: 700;
     margin: 0;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
 }
 
 .header-nav {
     display: flex;
-    gap: 8px;
+    gap: 12px;
+    flex: 1;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .nav-btn {
     background: transparent;
     color: var(--text-sec);
     border: none;
-    padding: 8px 16px;
+    padding: 9px 18px;
     border-radius: 20px;
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 600;
     transition: all 0.2s;
+    white-space: nowrap;
+    flex: 0 0 auto;
 }
 
 .nav-btn:hover {
@@ -84,14 +94,16 @@ h1, h2, p, label {
     flex: 1;
     gap: 0;
     overflow: hidden;
+    background: linear-gradient(135deg, #121212 0%, #1a1a1a 100%);
 }
 
 #sidebar {
     width: 350px;
-    background: #000;
+    background: transparent;
     border-right: 1px solid var(--spotify-light);
     overflow-y: auto;
     flex-shrink: 0;
+    align-self: stretch;
 }
 
 .tab-content {
@@ -106,6 +118,7 @@ h1, h2, p, label {
     background: var(--spotify-dark);
     padding: 24px;
     margin-bottom: 2px;
+    border-radius: 0 12px 12px 0;
 }
 
 .panel h2 {
@@ -141,7 +154,7 @@ h1, h2, p, label {
 
 #graph-container {
     flex: 1;
-    background: linear-gradient(135deg, #121212 0%, #1a1a1a 100%);
+    background: transparent;
     position: relative;
     overflow: hidden;
 }
@@ -516,47 +529,93 @@ button:active {
 
 /* RESPONSIVE */
 @media (max-width: 900px) {
+    #top-header {
+        padding: 14px 16px;
+    }
+
+    .header-content {
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .header-left h1 {
+        font-size: 1.22rem;
+    }
+
+    .header-nav {
+        width: 100%;
+        justify-content: flex-start;
+        gap: 8px;
+    }
+
+    .nav-btn {
+        padding: 8px 14px;
+        font-size: 0.8rem;
+    }
+
     #main-content {
         flex-direction: column;
+        overflow: visible;
     }
 
     #sidebar {
         width: 100%;
-        max-height: 50dvh;
+        max-height: none;
         border-right: none;
         border-bottom: 1px solid var(--spotify-light);
+        overflow: visible;
+    }
+
+    .panel {
+        border-radius: 0 0 12px 12px;
+        margin-bottom: 12px;
     }
 
     #graph-container {
-        min-height: 50dvh;
+        min-height: 64dvh;
         width: 100%;
-    }
-
-    .header-nav {
-        flex-wrap: wrap;
-        gap: 4px;
-    }
-
-    .nav-btn {
-        padding: 6px 12px;
-        font-size: 0.8rem;
     }
 }
 
 @media (max-width: 600px) {
     .header-content {
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
         align-items: flex-start;
     }
 
     .header-nav {
         width: 100%;
+        overflow-x: auto;
+    }
+
+    .header-left h1 {
+        font-size: 1.1rem;
+        line-height: 1.1;
+    }
+
+    .nav-btn {
+        padding: 7px 12px;
+        font-size: 0.75rem;
+    }
+
+    #sidebar {
+        border-bottom: none;
+    }
+
+    .panel {
+        padding: 18px;
+        border-radius: 0;
+    }
+
+    #graph-container {
+        min-height: 56dvh;
     }
 
     .modal-content {
         width: 95%;
         border-radius: 8px;
+        max-height: 88vh;
     }
 
     .modal-header {
@@ -569,6 +628,14 @@ button:active {
 
     .info-grid {
         grid-template-columns: 1fr;
+    }
+
+    .modal-footer {
+        flex-direction: column;
+    }
+
+    .modal-footer button:not(:first-child) {
+        margin-left: 0;
     }
 }
 
