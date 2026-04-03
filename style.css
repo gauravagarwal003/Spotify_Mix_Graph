@@ -163,6 +163,34 @@ label {
     background: rgba(46, 215, 96, 0.95);
 }
 
+#mobile-graph-toggle,
+#mobile-graph-exit {
+    display: none;
+    background: rgba(14, 18, 25, 0.88);
+    color: var(--ink-strong);
+    border: 1px solid rgba(95, 225, 139, 0.58);
+    border-radius: 999px;
+    font-family: 'Work Sans', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 8px 12px;
+    width: auto;
+    min-width: max-content;
+    flex: 0 0 auto;
+    cursor: pointer;
+}
+
+#mobile-graph-exit {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    right: 10px;
+    z-index: 90;
+    background: rgba(14, 18, 25, 0.94);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+}
+
 #main-content {
     flex: 1;
     position: relative;
@@ -778,11 +806,19 @@ button:active {
         width: 100%;
         justify-content: flex-start;
         gap: 8px;
+        flex-wrap: wrap;
     }
 
     .nav-btn {
         padding: 8px 12px;
         font-size: 0.7rem;
+        letter-spacing: 0.05em;
+    }
+
+    #mobile-graph-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
     #main-content {
@@ -815,8 +851,22 @@ button:active {
 }
 
 @media (max-width: 600px) {
+    #top-header {
+        padding: 0 10px;
+    }
+
     #sidebar {
         padding: 8px;
+    }
+
+    .header-nav {
+        gap: 6px;
+    }
+
+    .nav-btn,
+    #mobile-graph-toggle {
+        padding: 7px 10px;
+        font-size: 0.66rem;
     }
 
     .panel {
@@ -840,6 +890,30 @@ button:active {
     .modal-footer button:not(:first-child) {
         margin-left: 0;
     }
+}
+
+body.mobile-graph-only #top-header,
+body.mobile-graph-only #sidebar {
+    display: none;
+}
+
+body.mobile-graph-only #main-content {
+    height: 100vh;
+    height: 100dvh;
+}
+
+body.mobile-graph-only #graph-container {
+    position: fixed;
+    inset: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    z-index: 35;
+}
+
+body.mobile-graph-only #mobile-graph-exit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 @media (prefers-reduced-motion: reduce) {

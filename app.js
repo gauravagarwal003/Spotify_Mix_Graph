@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // NEW: Setup UI improvements
   setupTabNavigation();
+  setupMobileViewControls();
   setupWelcomeModal();
   setupDropdownCloseOnClickOutside();
   updateSpotifyStatusDisplay();
@@ -1379,6 +1380,62 @@ async function checkSpotifyAuth() {
 // ==========================================
 // TAB SWITCHING AND UI IMPROVEMENTS
 // ==========================================
+
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 900px)').matches;
+}
+
+function updateResponsiveTabLabels() {
+  const isMobile = isMobileViewport();
+  const navBtns = document.querySelectorAll('.nav-btn[data-full][data-short]');
+
+  navBtns.forEach((btn) => {
+    const nextLabel = isMobile
+      ? btn.getAttribute('data-short')
+      : btn.getAttribute('data-full');
+    if (nextLabel) {
+      btn.textContent = nextLabel;
+    }
+  });
+}
+
+function setGraphFocusMode(enabled) {
+  const shouldEnable = Boolean(enabled) && isMobileViewport();
+  document.body.classList.toggle('mobile-graph-only', shouldEnable);
+
+  const graphToggleBtn = document.getElementById('mobile-graph-toggle');
+  if (graphToggleBtn) {
+    graphToggleBtn.setAttribute('aria-pressed', shouldEnable ? 'true' : 'false');
+  }
+
+  requestGraphResize(true);
+}
+
+function setupMobileViewControls() {
+  const graphToggleBtn = document.getElementById('mobile-graph-toggle');
+  const graphExitBtn = document.getElementById('mobile-graph-exit');
+
+  updateResponsiveTabLabels();
+
+  if (graphToggleBtn) {
+    graphToggleBtn.addEventListener('click', () => {
+      setGraphFocusMode(true);
+    });
+  }
+
+  if (graphExitBtn) {
+    graphExitBtn.addEventListener('click', () => {
+      setGraphFocusMode(false);
+    });
+  }
+
+  window.addEventListener('resize', () => {
+    updateResponsiveTabLabels();
+    if (!isMobileViewport() && document.body.classList.contains('mobile-graph-only')) {
+      setGraphFocusMode(false);
+    }
+  });
+}
 
 function setupTabNavigation() {
   const navBtns = document.querySelectorAll('.nav-btn');

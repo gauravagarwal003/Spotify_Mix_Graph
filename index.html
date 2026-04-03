@@ -28,10 +28,11 @@
             <h1>Spotify Mix Graph</h1>
           </div>
           <nav class="header-nav">
-            <button class="nav-btn active" data-tab="add">Add Transition</button>
-            <button class="nav-btn" data-tab="search">Find Song</button>
-            <button class="nav-btn" data-tab="info">Info</button>
-            <button class="nav-btn" data-tab="account">Account</button>
+            <button class="nav-btn active" data-tab="add" data-full="Add Transition" data-short="Add">Add Transition</button>
+            <button class="nav-btn" data-tab="search" data-full="Find Song" data-short="Find">Find Song</button>
+            <button class="nav-btn" data-tab="info" data-full="Info" data-short="Info">Info</button>
+            <button class="nav-btn" data-tab="account" data-full="Account" data-short="Me">Account</button>
+            <button type="button" id="mobile-graph-toggle" aria-pressed="false">Focus Graph</button>
           </nav>
         </div>
       </header>
@@ -223,6 +224,8 @@
         </div>
         <div class="modal-backdrop"></div>
       </div>
+
+      <button type="button" id="mobile-graph-exit">Back to Tabs</button>
     </div>
 
     <script src="app.js"></script>
