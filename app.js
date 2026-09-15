@@ -875,11 +875,15 @@ function setupFirebase() {
       loginForm.style.display = "none";
       loggedInUi.style.display = "block";
       attachGraphListenerForUser(user);
+      if (getActiveTabName() === "account") {
+        switchToTab("add");
+      }
     } else {
       mainPanel.style.display = "none";
       loginForm.style.display = "block";
       loggedInUi.style.display = "none";
       clearGraph();
+      switchToTab("account");
     }
 
     if (resetConfirmInput) {
@@ -1464,6 +1468,11 @@ function switchToTab(tabName) {
   tabContents.forEach((tab) => {
     tab.classList.toggle('active', tab.getAttribute('data-tab') === tabName);
   });
+}
+
+function getActiveTabName() {
+  const activeTab = document.querySelector('.tab-content.active');
+  return activeTab ? activeTab.getAttribute('data-tab') : "";
 }
 
 // MODAL FUNCTIONS

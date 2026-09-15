@@ -288,6 +288,22 @@ label {
     line-height: 1.45;
 }
 
+.account-info {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(95, 225, 139, 0.22);
+}
+
+.account-info > h3 {
+    margin: 0 0 12px;
+    font-family: 'Work Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-strong);
+}
+
 #add-transition-form {
     display: flex;
     flex-direction: column;

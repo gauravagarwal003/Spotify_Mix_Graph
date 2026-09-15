@@ -28,10 +28,9 @@
             <h1>Spotify Mix Graph</h1>
           </div>
           <nav class="header-nav">
-            <button class="nav-btn active" data-tab="add" data-full="Add Transition" data-short="Add">Add Transition</button>
+            <button class="nav-btn" data-tab="add" data-full="Add Transition" data-short="Add">Add Transition</button>
             <button class="nav-btn" data-tab="search" data-full="Find Song" data-short="Find">Find Song</button>
-            <button class="nav-btn" data-tab="info" data-full="Info" data-short="Info">Info</button>
-            <button class="nav-btn" data-tab="account" data-full="Account" data-short="Me">Account</button>
+            <button class="nav-btn active" data-tab="account" data-full="Account" data-short="Me">Account</button>
             <button type="button" id="mobile-graph-toggle" aria-pressed="false">Focus Graph</button>
           </nav>
         </div>
@@ -42,7 +41,7 @@
         <!-- Sidebar with content panels that change based on tab -->
         <aside id="sidebar">
           <!-- Add Transition Tab -->
-          <div class="tab-content active" data-tab="add">
+          <div class="tab-content" data-tab="add">
             <div class="panel">
               <div id="music-search-info">
                 <h2>Music Search</h2>
@@ -108,33 +107,8 @@
             </div>
           </div>
 
-          <!-- Info Tab -->
-          <div class="tab-content" data-tab="info">
-            <div class="panel">
-              <h2>Why Login + How It Works</h2>
-              <div class="info-grid">
-                <div class="info-card">
-                  <h3>1) Music Search</h3>
-                  <p>Searches track metadata (name, artist, artwork, and duration) without a streaming account.</p>
-                </div>
-                <div class="info-card">
-                  <h3>2) Google Login</h3>
-                  <p>Needed to protect edits. Your graph is stored in Firebase under your account only.</p>
-                </div>
-                <div class="info-card">
-                  <h3>3) Add and Explore</h3>
-                  <p>Add transitions, click songs to inspect incoming/outgoing paths, and search the graph.</p>
-                </div>
-                <div class="info-card">
-                  <h3>4) Data Ownership</h3>
-                  <p>Your graph auto-saves to cloud for your signed-in Google account. Sign out to lock editing.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- Account Tab -->
-          <div class="tab-content" data-tab="account">
+          <div class="tab-content active" data-tab="account">
             <div class="panel">
               <h2>Account</h2>
               <div id="login-form-container">
@@ -162,6 +136,27 @@
                     <label for="reset-confirm-input" class="danger-label">Type RESET to enable:</label>
                     <input type="text" id="reset-confirm-input" placeholder="Type RESET" autocomplete="off" />
                     <button type="button" id="reset-graph-btn" class="btn-danger-subtle" disabled>Permanently Reset My Graph</button>
+                  </div>
+                </div>
+              </div>
+              <div class="account-info">
+                <h3>How It Works</h3>
+                <div class="info-grid">
+                  <div class="info-card">
+                    <h3>1) Music Search</h3>
+                    <p>Searches track metadata, artwork, and duration without connecting a streaming account.</p>
+                  </div>
+                  <div class="info-card">
+                    <h3>2) Google Login</h3>
+                    <p>Needed to protect edits. Your graph is stored in Firebase under your account only.</p>
+                  </div>
+                  <div class="info-card">
+                    <h3>3) Add and Explore</h3>
+                    <p>Add transitions, click songs to inspect paths, and search your saved graph.</p>
+                  </div>
+                  <div class="info-card">
+                    <h3>4) Data Ownership</h3>
+                    <p>Your graph auto-saves to cloud for your signed-in Google account. Sign out to lock editing.</p>
                   </div>
                 </div>
               </div>
