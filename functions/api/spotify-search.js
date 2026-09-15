@@ -41,8 +41,8 @@ export async function onRequestGet(context) {
   const requestUrl = new URL(context.request.url);
   const query = String(requestUrl.searchParams.get("q") || "").trim();
   const limit = Math.min(
-    20,
-    Math.max(1, Number.parseInt(requestUrl.searchParams.get("limit"), 10) || 15),
+    10,
+    Math.max(1, Number.parseInt(requestUrl.searchParams.get("limit"), 10) || 10),
   );
 
   if (query.length < 2 || query.length > 100) {

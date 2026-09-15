@@ -44,22 +44,17 @@
           <!-- Add Transition Tab -->
           <div class="tab-content active" data-tab="add">
             <div class="panel">
-              <div id="spotify-auth">
-                <h2>Connect Music Search</h2>
+              <div id="music-search-info">
+                <h2>Music Search</h2>
                 <p style="font-size: 0.85rem; color: var(--text-sec); margin-bottom: 15px;">
-                  Provider login is used only to search official track metadata and album artwork.
-                  The app never edits your streaming library.
+                  Search song metadata and album artwork without connecting a streaming account.
+                  Sign in with Google in the Account tab to edit and sync your graph.
                 </p>
-                <button id="login-btn" class="btn-green">Connect Provider</button>
               </div>
 
               <div id="main-panel" style="display: none; margin-top: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
                   <h2>Add Transition</h2>
-                  <span id="spotify-status" style="font-size: 0.75rem; color: var(--spotify-green); display: none;">
-                    ✓ Search Connected |
-                    <a href="#" id="spotify-logout" style="color: var(--text-sec); text-decoration: underline;">Logout</a>
-                  </span>
                 </div>
                 <form id="add-transition-form">
                   <div class="input-group">
@@ -119,8 +114,8 @@
               <h2>Why Login + How It Works</h2>
               <div class="info-grid">
                 <div class="info-card">
-                  <h3>1) Music API Login</h3>
-                  <p>Needed only for searching official track metadata (name, artist, artwork, duration).</p>
+                  <h3>1) Music Search</h3>
+                  <p>Searches track metadata (name, artist, artwork, and duration) without a streaming account.</p>
                 </div>
                 <div class="info-card">
                   <h3>2) Google Login</h3>
@@ -201,8 +196,8 @@
           <div class="modal-body">
             <div class="info-grid">
               <div class="info-card">
-                <h3>1) Music API Login</h3>
-                <p>Needed only for searching official track metadata (name, artist, artwork, duration).</p>
+                  <h3>1) Music Search</h3>
+                  <p>Searches track metadata (name, artist, artwork, and duration) without a streaming account.</p>
               </div>
               <div class="info-card">
                 <h3>2) Google Login</h3>

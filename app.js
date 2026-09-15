@@ -6,9 +6,7 @@ let isApplyingFirebaseSnapshot = false;
 let activeGraphRef = null;
 let activeGraphValueHandler = null;
 
-// Before deploying, create a Spotify Developer App and put its Client ID here
-const SPOTIFY_CLIENT_ID = "03f085f9e7054e1abb2be9a2e89a8892"; // Using a placeholder, change to yours
-let spotifyAccessToken = null;
+const MAX_SCREENSHOT_SIZE_BYTES = 2 * 1024 * 1024;
 
 // FIREBASE CONFIGURATION
 // Replace this with your own Firebase project config!
@@ -27,7 +25,7 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
   firebase.initializeApp(firebaseConfig);
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
   if (typeof cytoscape === "undefined") {
     const graphContainer = document.getElementById("graph-container");
     if (graphContainer) {
@@ -37,9 +35,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error("Cytoscape library failed to load.");
     return;
   }
-
-  // Wait for auth to complete BEFORE doing anything else
-  await checkSpotifyAuth();
 
   // Instead of GitHub logic, we now just start empty and wait for Firebase Realtime DB.
   let graphData = { nodes: [], edges: [] };
@@ -56,7 +51,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupMobileViewControls();
   setupWelcomeModal();
   setupDropdownCloseOnClickOutside();
-  updateSpotifyStatusDisplay();
   updateShowDetailsForModal();
   setupInfoModalDismissHandlers();
 
@@ -284,6 +278,15 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function getSafeImageUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" ? url.href : "";
+  } catch (error) {
+    return "";
+  }
 }
 
 function listConnectedSongNames(nodeCollection) {
@@ -635,6 +638,13 @@ function setupEvents() {
   fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (!file.type.startsWith("image/") || file.size > MAX_SCREENSHOT_SIZE_BYTES) {
+        fileInput.value = "";
+        fileLabel.textContent = "No file selected";
+        currentScreenshotBase64 = null;
+        alert("Choose an image smaller than 2 MB.");
+        return;
+      }
       fileLabel.textContent = file.name;
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -659,8 +669,21 @@ function setupEvents() {
       return;
     }
 
-    const n1 = JSON.parse(n1DataStr);
-    const n2 = JSON.parse(n2DataStr);
+    let n1;
+    let n2;
+    try {
+      n1 = JSON.parse(n1DataStr);
+      n2 = JSON.parse(n2DataStr);
+    } catch (error) {
+      console.error("Invalid selected track data:", error);
+      alert("Please select both tracks again.");
+      return;
+    }
+
+    if (!n1?.id || !n1?.name || !n2?.id || !n2?.name) {
+      alert("Please select valid tracks from the search autocomplete.");
+      return;
+    }
 
     let node1Id = findExistingNodeIdForTrack(n1);
     let node2Id = findExistingNodeIdForTrack(n2);
@@ -848,15 +871,7 @@ function setupFirebase() {
     detachGraphListener();
 
     if (user) {
-      if (
-        spotifyAccessToken &&
-        spotifyAccessToken !== "undefined" &&
-        spotifyAccessToken !== "null"
-      ) {
         mainPanel.style.display = "block";
-      } else {
-        mainPanel.style.display = "none";
-      }
       loginForm.style.display = "none";
       loggedInUi.style.display = "block";
       attachGraphListenerForUser(user);
@@ -888,7 +903,10 @@ function setupFirebase() {
       .auth()
       .signInWithPopup(provider)
       .catch((error) => {
-        errTxt.innerText = error.message;
+        console.error("Google sign-in failed:", error);
+        errTxt.innerText = error.code
+          ? `${error.code}: ${error.message}`
+          : error.message;
         errTxt.style.display = "block";
       });
   });
@@ -938,11 +956,11 @@ function setupFirebase() {
   });
 }
 
-function setupAutocomplete(nodeId) {
+function setupSpotifyAutocompleteLegacy(nodeId) {
   const searchInput = document.getElementById(`${nodeId}-search`);
   const resultsDiv = document.getElementById(`${nodeId}-results`);
   const hiddenData = document.getElementById(`${nodeId}-data`);
-  const SPOTIFY_SEARCH_LIMIT = 15;
+  const SPOTIFY_SEARCH_LIMIT = 10;
 
   let localDebounceTimer = null;
   let currentFetchQuery = "";
@@ -961,10 +979,11 @@ function setupAutocomplete(nodeId) {
       const div = document.createElement("div");
       div.className = "autocomplete-item";
 
-      const coverUrl =
+      const coverUrl = getSafeImageUrl(
         track.album && track.album.images && track.album.images.length > 0
           ? track.album.images[track.album.images.length - 1].url
-          : "";
+          : "",
+      );
 
       const artistName = track.artists
         ? track.artists.map((a) => a.name).join(", ")
@@ -983,11 +1002,11 @@ function setupAutocomplete(nodeId) {
       });
 
       div.innerHTML = `
-                        <img src="${coverUrl}" alt="Cover">
+                <img src="${escapeHtml(coverUrl)}" alt="Cover">
                         <div class="autocomplete-info">
-                            <span class="autocomplete-name">${track.name}</span>
-                            <span class="autocomplete-artist">${artistName}</span>
-                            <span class="autocomplete-meta">${formattedDuration} • ${connectionCount} connection${connectionCount === 1 ? "" : "s"}</span>
+                  <span class="autocomplete-name">${escapeHtml(track.name)}</span>
+                  <span class="autocomplete-artist">${escapeHtml(artistName)}</span>
+                  <span class="autocomplete-meta">${escapeHtml(formattedDuration)} • ${connectionCount} connection${connectionCount === 1 ? "" : "s"}</span>
                         </div>
                     `;
 
@@ -1029,7 +1048,7 @@ function setupAutocomplete(nodeId) {
       currentFetchQuery = query;
 
       const tokenToUse =
-        spotifyAccessToken || localStorage.getItem("spotify_access_token");
+        spotifyAccessToken || sessionStorage.getItem(SPOTIFY_TOKEN_STORAGE_KEY);
       if (!tokenToUse || tokenToUse === "undefined" || tokenToUse === "null") {
         console.warn("No spotify token available.");
         return;
@@ -1063,7 +1082,7 @@ function setupAutocomplete(nodeId) {
 
         if (response.status === 401) {
           console.error("Spotify token expired, clearing token.");
-          localStorage.removeItem("spotify_access_token");
+          sessionStorage.removeItem(SPOTIFY_TOKEN_STORAGE_KEY);
           spotifyAccessToken = null;
           window.location.reload();
           return;
@@ -1103,7 +1122,7 @@ function setupAutocomplete(nodeId) {
           }
 
           console.error("Spotify API error:", errMessage);
-          resultsDiv.innerHTML = `<div style="padding:10px; color:#f44336; font-size:12px;">Error: ${errMessage}</div>`;
+          resultsDiv.innerHTML = `<div style="padding:10px; color:#f44336; font-size:12px;">Error: ${escapeHtml(errMessage)}</div>`;
           resultsDiv.style.display = "block";
           return;
         }
@@ -1124,6 +1143,110 @@ function setupAutocomplete(nodeId) {
         console.error(err);
       }
     }, 450);
+  });
+}
+
+function setupAutocomplete(nodeId) {
+  const searchInput = document.getElementById(`${nodeId}-search`);
+  const resultsDiv = document.getElementById(`${nodeId}-results`);
+  const hiddenData = document.getElementById(`${nodeId}-data`);
+  const SPOTIFY_SEARCH_LIMIT = 10;
+
+  let localDebounceTimer = null;
+  let currentFetchQuery = "";
+
+  const renderTracks = (tracks) => {
+    resultsDiv.innerHTML = "";
+
+    if (tracks.length === 0) {
+      resultsDiv.innerHTML =
+        '<div style="padding:10px; color:#b3b3b3; font-size:12px;">No results found</div>';
+      resultsDiv.style.display = "block";
+      return;
+    }
+
+    tracks.forEach((track) => {
+      const div = document.createElement("div");
+      div.className = "autocomplete-item";
+
+      const coverUrl = getSafeImageUrl(track.cover);
+      const artistName = track.artist || "Unknown Artist";
+      const durationMs = Number(track.durationMs) || 0;
+      const minutes = Math.floor(durationMs / 60000);
+      const seconds = String(Math.floor((durationMs % 60000) / 1000)).padStart(2, "0");
+      const formattedDuration = `${minutes}:${seconds}`;
+      const trackId = track.id;
+      const connectionCount = getConnectionCountForTrack({
+        id: trackId,
+        name: track.name,
+        artist: artistName,
+        durationMs,
+      });
+
+      div.innerHTML = `
+        <img src="${escapeHtml(coverUrl)}" alt="Cover">
+        <div class="autocomplete-info">
+          <span class="autocomplete-name">${escapeHtml(track.name)}</span>
+          <span class="autocomplete-artist">${escapeHtml(artistName)}</span>
+          <span class="autocomplete-meta">${escapeHtml(formattedDuration)} • ${connectionCount} connection${connectionCount === 1 ? "" : "s"}</span>
+        </div>
+      `;
+
+      div.addEventListener("click", () => {
+        const selectedTrack = {
+          id: trackId,
+          name: track.name,
+          artist: artistName,
+          cover: coverUrl,
+          durationMs,
+          canonicalSongKey: buildCanonicalSongKey({
+            name: track.name,
+            artist: artistName,
+            durationMs,
+          }),
+        };
+        searchInput.value = `${track.name} - ${artistName}`;
+        hiddenData.value = JSON.stringify(selectedTrack);
+        resultsDiv.style.display = "none";
+      });
+      resultsDiv.appendChild(div);
+    });
+
+    resultsDiv.style.display = "block";
+  };
+
+  searchInput.addEventListener("input", (event) => {
+    if (localDebounceTimer) clearTimeout(localDebounceTimer);
+    const query = event.target.value.trim();
+
+    if (query.length < 2) {
+      resultsDiv.style.display = "none";
+      return;
+    }
+
+    localDebounceTimer = setTimeout(async () => {
+      currentFetchQuery = query;
+      const url = new URL("/api/spotify-search", window.location.origin);
+      url.searchParams.set("q", query);
+      url.searchParams.set("limit", String(SPOTIFY_SEARCH_LIMIT));
+
+      try {
+        const response = await fetch(url);
+        if (currentFetchQuery !== query) return;
+        if (!response.ok) {
+          throw new Error(`Spotify search failed (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (currentFetchQuery !== query) return;
+        renderTracks(Array.isArray(data.results) ? data.results : []);
+      } catch (error) {
+        console.error("Spotify search error:", error);
+        resultsDiv.innerHTML =
+          '<div style="padding:10px; color:#f44336; font-size:12px;">Search is temporarily unavailable.</div>';
+        resultsDiv.style.display = "block";
+      }
+    }, 350);
   });
 }
 
@@ -1244,137 +1367,6 @@ function setupGraphSearch() {
     }
     requestGraphResize(false);
   });
-}
-
-async function checkSpotifyAuth() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const code = urlParams.get("code");
-  const redirectUri = window.location.href.split("?")[0].split("#")[0]; // Clean URI for redirect
-
-  if (code) {
-    // Exchange code for access token using PKCE
-    const codeVerifier = localStorage.getItem("code_verifier");
-    try {
-      const tokenResponse = await fetch(
-        "https://accounts.spotify.com/api/token",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            client_id: SPOTIFY_CLIENT_ID,
-            grant_type: "authorization_code",
-            code: code,
-            redirect_uri: redirectUri,
-            code_verifier: codeVerifier,
-          }),
-        },
-      );
-      const data = await tokenResponse.json();
-
-      if (data.access_token) {
-        localStorage.setItem("spotify_access_token", data.access_token);
-        spotifyAccessToken = data.access_token;
-      } else {
-        console.error("Token exchange failed: ", data);
-        alert(
-          "Spotify Login Failed: " +
-            (data.error_description || data.error || "Unknown error"),
-        );
-      }
-      // Clear URL
-      window.history.replaceState(null, null, window.location.pathname);
-    } catch (e) {
-      console.error("Error exchanging token", e);
-    }
-  } else {
-    spotifyAccessToken = localStorage.getItem("spotify_access_token");
-  }
-
-  const authPanel = document.getElementById("spotify-auth");
-  const mainPanel = document.getElementById("main-panel");
-  const authBtn = document.getElementById("login-btn");
-  const logoutBtn = document.getElementById("spotify-logout");
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      localStorage.removeItem("spotify_access_token");
-      window.location.reload();
-    });
-  }
-
-  if (
-    spotifyAccessToken &&
-    spotifyAccessToken !== "undefined" &&
-    spotifyAccessToken !== "null"
-  ) {
-    authPanel.style.display = "none";
-    mainPanel.style.display = "block";
-  } else {
-    authPanel.style.display = "block";
-    mainPanel.style.display = "none";
-
-    authBtn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      try {
-        // Generate PKCE codes
-        const generateRandomString = (length) => {
-          const possible =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-          const values = crypto.getRandomValues(new Uint8Array(length));
-          return values.reduce(
-            (acc, x) => acc + possible[x % possible.length],
-            "",
-          );
-        };
-
-        const sha256 = async (plain) => {
-          const encoder = new TextEncoder();
-          const data = encoder.encode(plain);
-          return window.crypto.subtle.digest("SHA-256", data);
-        };
-
-        const base64encode = (input) => {
-          return btoa(String.fromCharCode(...new Uint8Array(input)))
-            .replace(/=/g, "")
-            .replace(/\+/g, "-")
-            .replace(/\//g, "_");
-        };
-
-        const codeVerifier = generateRandomString(64);
-
-        if (!window.crypto || !window.crypto.subtle) {
-          alert(
-            "Your browser is blocking secure crypto functions. Please ensure you are accessing via http://localhost:8000 and not a network IP, or use https.",
-          );
-          return;
-        }
-
-        const hashed = await sha256(codeVerifier);
-        const codeChallenge = base64encode(hashed);
-
-        localStorage.setItem("code_verifier", codeVerifier);
-
-        const authUrl = new URL("https://accounts.spotify.com/authorize");
-        const params = {
-          response_type: "code",
-          client_id: SPOTIFY_CLIENT_ID,
-          scope: "user-read-private",
-          code_challenge_method: "S256",
-          code_challenge: codeChallenge,
-          redirect_uri: redirectUri,
-        };
-
-        authUrl.search = new URLSearchParams(params).toString();
-        window.location.href = authUrl.toString();
-      } catch (err) {
-        console.error("Login creation failed:", err);
-        alert("Error during login setup: " + err.message);
-      }
-    });
-  }
 }
 
 // ==========================================
@@ -1686,20 +1678,6 @@ function setupDropdownCloseOnClickOutside() {
       graphSearchResults.style.display = 'none';
     }
   });
-}
-
-// FIX SPOTIFY LOGIN STATUS - Only show as connected when actually connected
-function updateSpotifyStatusDisplay() {
-  const statusSpan = document.getElementById('spotify-status');
-  const tokenToUse = spotifyAccessToken || localStorage.getItem('spotify_access_token');
-  
-  // Always hide initially - only show after verification
-  if (statusSpan) {
-    statusSpan.style.display = 'none';
-  }
-  
-  // Don't automatically show - wait for successful API call
-  // Token could be stale from previous session
 }
 
 // Re-export the updateShowDetailsForModal so it's called after graph initializes
