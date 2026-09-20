@@ -226,6 +226,10 @@ function applyGraphQualityFixes() {
     }
   });
 
+  if (typeof getActiveTabName === "function" && getActiveTabName() === "playlists") {
+    renderTopPlaylists();
+  }
+
   return changed;
 }
 
@@ -330,7 +334,7 @@ function updateGraphSelectionControls(hasSelection) {
 function clearGraphHighlight() {
   if (!cy) return;
   cy.elements().removeClass(
-    "is-dimmed is-selected is-incoming is-outgoing is-neighbor-in is-neighbor-out",
+    "is-dimmed is-selected is-incoming is-outgoing is-neighbor-in is-neighbor-out is-playlist-node is-playlist-edge",
   );
   updateGraphSelectionControls(false);
 }
@@ -586,6 +590,25 @@ function initGraph(data) {
           "target-arrow-color": "#ffc844",
           width: 7,
           opacity: 0.98,
+        },
+      },
+      {
+        selector: "node.is-playlist-node",
+        style: {
+          "border-color": "#2ed760",
+          "border-width": 6,
+          "z-index": 999,
+          opacity: 1,
+        },
+      },
+      {
+        selector: "edge.is-playlist-edge",
+        style: {
+          "line-color": "#2ed760",
+          "target-arrow-color": "#2ed760",
+          width: 7,
+          opacity: 1,
+          "z-index": 998,
         },
       },
     ],
@@ -1435,6 +1458,262 @@ function setupGraphSearch() {
 }
 
 // ==========================================
+// TOP LONGEST PLAYLISTS / MIX CHAINS
+// ==========================================
+
+function findTopLongestPlaylists(limit = 3) {
+  if (!cy || cy.nodes().length < 2) return [];
+
+  const nodes = cy.nodes();
+  const adj = new Map();
+  const inDegree = new Map();
+  const nodeDataMap = new Map();
+
+  nodes.forEach((n) => {
+    const id = n.id();
+    adj.set(id, []);
+    inDegree.set(id, 0);
+    nodeDataMap.set(id, n.data());
+  });
+
+  cy.edges().forEach((e) => {
+    const src = e.data("source");
+    const tgt = e.data("target");
+    if (adj.has(src) && nodeDataMap.has(tgt)) {
+      adj.get(src).push({ target: tgt, edgeId: e.id() });
+      inDegree.set(tgt, (inDegree.get(tgt) || 0) + 1);
+    }
+  });
+
+  const allMaximalPaths = [];
+  const maxPathsPerStart = 250;
+  const maxSearchDepth = 50;
+
+  // Prioritize starting from source nodes (lowest in-degree) first
+  const startNodeIds = nodes.map((n) => n.id()).sort((a, b) => {
+    return (inDegree.get(a) || 0) - (inDegree.get(b) || 0);
+  });
+
+  for (const startId of startNodeIds) {
+    let pathsFromThisNode = 0;
+    const visited = new Set([startId]);
+
+    function dfs(currentId, currentPath, currentEdges, currentDuration) {
+      if (pathsFromThisNode >= maxPathsPerStart || currentPath.length >= maxSearchDepth) {
+        return;
+      }
+
+      const neighbors = adj.get(currentId) || [];
+      let extended = false;
+
+      for (const { target, edgeId } of neighbors) {
+        if (!visited.has(target)) {
+          extended = true;
+          visited.add(target);
+          const tData = nodeDataMap.get(target);
+          const dur = Number(tData?.durationMs) || 0;
+
+          dfs(target, [...currentPath, target], [...currentEdges, edgeId], currentDuration + dur);
+          visited.delete(target);
+        }
+      }
+
+      // If this path cannot be extended further and has at least 2 tracks (1 transition)
+      if (!extended && currentPath.length >= 2) {
+        pathsFromThisNode++;
+        allMaximalPaths.push({
+          nodeIds: currentPath,
+          edgeIds: currentEdges,
+          trackCount: currentPath.length,
+          totalDurationMs: currentDuration,
+        });
+      }
+    }
+
+    const startData = nodeDataMap.get(startId);
+    const startDur = Number(startData?.durationMs) || 0;
+    dfs(startId, [startId], [], startDur);
+  }
+
+  // Sort paths primarily by trackCount descending, secondarily by totalDurationMs descending
+  allMaximalPaths.sort((a, b) => {
+    if (b.trackCount !== a.trackCount) return b.trackCount - a.trackCount;
+    return b.totalDurationMs - a.totalDurationMs;
+  });
+
+  // Deduplicate: Discard candidate if it is a sub-path of an already selected path
+  const selected = [];
+  for (const candidate of allMaximalPaths) {
+    if (selected.length >= limit) break;
+
+    const candStr = candidate.nodeIds.join(">");
+    const isSubpath = selected.some((sel) => sel.nodeIds.join(">").includes(candStr));
+    const isDuplicate = selected.some((sel) => sel.nodeIds.join(">") === candStr);
+
+    if (!isSubpath && !isDuplicate) {
+      selected.push(candidate);
+    }
+  }
+
+  // Fallback if we still need paths: take next longest distinct paths
+  if (selected.length < limit) {
+    for (const candidate of allMaximalPaths) {
+      if (selected.length >= limit) break;
+      const candStr = candidate.nodeIds.join(">");
+      if (!selected.some((sel) => sel.nodeIds.join(">") === candStr)) {
+        selected.push(candidate);
+      }
+    }
+  }
+
+  return selected.map((p, index) => {
+    const tracks = p.nodeIds.map((id) => nodeDataMap.get(id));
+    const minutes = Math.floor(p.totalDurationMs / 60000);
+    const seconds = Math.floor((p.totalDurationMs % 60000) / 1000);
+    const formattedDuration =
+      p.totalDurationMs > 0
+        ? minutes >= 60
+          ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+          : `${minutes}m ${seconds}s`
+        : "";
+
+    return {
+      rank: index + 1,
+      trackCount: p.trackCount,
+      totalDurationMs: p.totalDurationMs,
+      formattedDuration,
+      nodeIds: p.nodeIds,
+      edgeIds: p.edgeIds,
+      tracks,
+    };
+  });
+}
+
+function highlightPlaylistOnGraph(playlist) {
+  if (!cy || !playlist || !playlist.nodeIds) return;
+
+  clearGraphHighlight();
+
+  // Dim all non-playlist elements
+  cy.elements().addClass("is-dimmed");
+
+  const pathElements = cy.collection();
+  playlist.nodeIds.forEach((id) => {
+    const n = cy.getElementById(id);
+    if (!n.empty()) {
+      n.removeClass("is-dimmed").addClass("is-playlist-node");
+      pathElements.merge(n);
+    }
+  });
+
+  playlist.edgeIds.forEach((id) => {
+    const e = cy.getElementById(id);
+    if (!e.empty()) {
+      e.removeClass("is-dimmed").addClass("is-playlist-edge");
+      pathElements.merge(e);
+    }
+  });
+
+  updateGraphSelectionControls(true);
+
+  if (pathElements.length > 0) {
+    cy.animate(
+      {
+        fit: { eles: pathElements, padding: isMobileViewport() ? 50 : 80 },
+      },
+      {
+        duration: 450,
+        easing: "ease-out-cubic",
+      },
+    );
+  }
+
+  // On mobile, collapse card so user sees the highlighted path immediately
+  if (isMobileViewport()) {
+    const panel = document.querySelector('.tab-content[data-tab="playlists"] .panel');
+    if (panel) {
+      panel.classList.add("is-collapsed");
+    }
+  }
+}
+
+function renderTopPlaylists() {
+  const container = document.getElementById("top-playlists-list");
+  if (!container) return;
+
+  const playlists = findTopLongestPlaylists(3);
+
+  if (playlists.length === 0) {
+    container.innerHTML = `
+      <div class="playlist-empty-state">
+        <p>No mix chains found yet. Add at least two connected songs to discover your longest playlists!</p>
+      </div>
+    `;
+    return;
+  }
+
+  const rankLabels = ["#1 Longest Mix", "#2 Longest Mix", "#3 Longest Mix"];
+  const rankColors = ["rank-gold", "rank-silver", "rank-bronze"];
+
+  container.innerHTML = playlists
+    .map((p, idx) => {
+      const startSong = p.tracks[0];
+      const endSong = p.tracks[p.tracks.length - 1];
+      const durationBadge = p.formattedDuration ? ` • ${p.formattedDuration}` : "";
+
+      const trackListHtml = p.tracks
+        .map((t, tIdx) => {
+          const cover = getSafeImageUrl(t?.cover);
+          const isLast = tIdx === p.tracks.length - 1;
+          return `
+            <div class="playlist-track-row">
+              <span class="playlist-track-num">${tIdx + 1}</span>
+              ${cover ? `<img class="playlist-track-art" src="${escapeHtml(cover)}" alt="">` : '<span class="playlist-track-art-empty" aria-hidden="true"></span>'}
+              <div class="playlist-track-info">
+                <div class="playlist-track-title">${escapeHtml(t?.name || "Unknown Track")}</div>
+                <div class="playlist-track-artist">${escapeHtml(t?.artist || "Unknown Artist")}</div>
+              </div>
+            </div>
+            ${!isLast ? '<div class="playlist-step-connector" aria-hidden="true">↓</div>' : ""}
+          `;
+        })
+        .join("");
+
+      return `
+        <div class="playlist-card" data-playlist-index="${idx}">
+          <div class="playlist-card-top">
+            <span class="playlist-rank-pill ${rankColors[idx] || ""}">${rankLabels[idx] || `#${idx + 1}`}</span>
+            <span class="playlist-meta-tag">${p.trackCount} Tracks${durationBadge}</span>
+          </div>
+          <div class="playlist-journey-tag">
+            <span class="journey-node" title="${escapeHtml(startSong?.name || '')}">${escapeHtml(startSong?.name || '')}</span>
+            <span class="journey-arrow">➔</span>
+            <span class="journey-node" title="${escapeHtml(endSong?.name || '')}">${escapeHtml(endSong?.name || '')}</span>
+          </div>
+          <div class="playlist-tracks-scroller">
+            ${trackListHtml}
+          </div>
+          <button type="button" class="btn-green playlist-highlight-btn" data-playlist-idx="${idx}">
+            Highlight on Graph
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+
+  container.querySelectorAll(".playlist-highlight-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const pIdx = Number(btn.getAttribute("data-playlist-idx"));
+      const playlist = playlists[pIdx];
+      if (playlist) {
+        highlightPlaylistOnGraph(playlist);
+      }
+    });
+  });
+}
+
+// ==========================================
 // TAB SWITCHING AND UI IMPROVEMENTS
 // ==========================================
 
@@ -1558,6 +1837,10 @@ function setupTabNavigation() {
       if (activeTab) {
         activeTab.classList.add('active');
       }
+
+      if (tabName === 'playlists') {
+        renderTopPlaylists();
+      }
     });
   });
 }
@@ -1573,6 +1856,10 @@ function switchToTab(tabName) {
   tabContents.forEach((tab) => {
     tab.classList.toggle('active', tab.getAttribute('data-tab') === tabName);
   });
+
+  if (tabName === 'playlists') {
+    renderTopPlaylists();
+  }
 }
 
 function getActiveTabName() {

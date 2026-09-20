@@ -33,6 +33,7 @@
           <nav class="header-nav">
             <button class="nav-btn" data-tab="add" data-full="Add Transition" data-short="Add">Add Transition</button>
             <button class="nav-btn" data-tab="search" data-full="Find Song" data-short="Find">Find Song</button>
+            <button class="nav-btn" data-tab="playlists" data-full="Top Mixes" data-short="Mixes">Top Mixes</button>
             <button class="nav-btn active" data-tab="account" data-full="Guide" data-short="Guide">Guide</button>
             <button type="button" id="mobile-graph-toggle" aria-pressed="false">View Graph</button>
           </nav>
@@ -104,6 +105,22 @@
                 </div>
                 <div id="details-content"></div>
               </section>
+            </div>
+          </div>
+
+          <!-- Top Mixes Tab -->
+          <div class="tab-content" data-tab="playlists">
+            <div class="panel">
+              <div class="panel-header">
+                <h2>Top Mixes</h2>
+                <button type="button" class="panel-collapse-btn" aria-label="Toggle card size" title="Minimize / Expand">
+                  <span class="collapse-icon">▾</span>
+                </button>
+              </div>
+              <p class="panel-note" id="playlists-intro">
+                Longest transition sequences in your mix graph.
+              </p>
+              <div id="top-playlists-list" class="top-playlists-list"></div>
             </div>
           </div>
 
