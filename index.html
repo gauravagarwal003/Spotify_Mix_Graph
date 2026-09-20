@@ -25,13 +25,16 @@
       <header id="top-header">
         <div class="header-content">
           <div class="header-left">
-            <h1>Spotify Mix Graph</h1>
+            <div class="brand-mark" aria-hidden="true"></div>
+            <div>
+              <h1>Spotify Mix Graph</h1>
+            </div>
           </div>
           <nav class="header-nav">
             <button class="nav-btn" data-tab="add" data-full="Add Transition" data-short="Add">Add Transition</button>
             <button class="nav-btn" data-tab="search" data-full="Find Song" data-short="Find">Find Song</button>
-            <button class="nav-btn active" data-tab="account" data-full="Account" data-short="Me">Account</button>
-            <button type="button" id="mobile-graph-toggle" aria-pressed="false">Focus Graph</button>
+            <button class="nav-btn active" data-tab="account" data-full="Guide" data-short="Guide">Guide</button>
+            <button type="button" id="mobile-graph-toggle" aria-pressed="false">View Graph</button>
           </nav>
         </div>
       </header>
@@ -43,17 +46,12 @@
           <!-- Add Transition Tab -->
           <div class="tab-content" data-tab="add">
             <div class="panel">
-              <div id="music-search-info">
-                <h2>Music Search</h2>
-                <p style="font-size: 0.85rem; color: var(--text-sec); margin-bottom: 15px;">
-                  Search song metadata and album artwork without connecting a streaming account.
-                  Sign in with Google in the Account tab to edit and sync your graph.
-                </p>
-              </div>
-
-              <div id="main-panel" style="display: none; margin-top: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;">
+              <div id="main-panel" class="auth-gated-panel" style="display: none;">
+                <div class="panel-header">
                   <h2>Add Transition</h2>
+                  <button type="button" class="panel-collapse-btn" aria-label="Toggle card size" title="Minimize / Expand">
+                    <span class="collapse-icon">▾</span>
+                  </button>
                 </div>
                 <form id="add-transition-form">
                   <div class="input-group">
@@ -85,22 +83,26 @@
           <!-- Find Song Tab -->
           <div class="tab-content" data-tab="search">
             <div class="panel">
-              <h2>Find Song In Graph</h2>
+              <div class="panel-header">
+                <h2>Find Song In Graph</h2>
+                <button type="button" class="panel-collapse-btn" aria-label="Toggle card size" title="Minimize / Expand">
+                  <span class="collapse-icon">▾</span>
+                </button>
+              </div>
               <div class="input-group">
                 <label for="graph-search-input">Song Name or Artist</label>
                 <input type="text" id="graph-search-input" placeholder="Type to find a song in the graph..." autocomplete="off" />
                 <div id="graph-search-results" class="autocomplete-results"></div>
               </div>
-              <button type="button" class="btn-outline" id="graph-search-clear-btn" style="margin-top: 12px;">
+              <button type="button" class="btn-outline hidden" id="graph-search-clear-btn">
                 Deselect Highlight
               </button>
               <p id="graph-search-help" class="graph-search-help">
                 Select a song to highlight incoming and outgoing connections.
               </p>
-              <section id="details-panel" class="details-panel" style="display: none;">
+              <section id="details-panel" class="details-drawer" style="display: none;">
                 <div class="details-panel-header">
                   <h3>Song Details</h3>
-                  <button type="button" class="btn-outline" id="details-clear-highlight-btn">Clear</button>
                 </div>
                 <div id="details-content"></div>
               </section>
@@ -110,12 +112,17 @@
           <!-- Account Tab -->
           <div class="tab-content active" data-tab="account">
             <div class="panel">
-              <h2>Account</h2>
+              <div class="panel-header">
+                <h2>Account</h2>
+                <button type="button" class="panel-collapse-btn" aria-label="Toggle card size" title="Minimize / Expand">
+                  <span class="collapse-icon">▾</span>
+                </button>
+              </div>
               <div id="login-form-container">
-                <p style="font-size: 0.8rem; color: var(--text-sec); margin-bottom: 15px;">
-                  Login to edit and sync your private graph. Signed-out users can view but cannot change data.
+                <p class="panel-note">
+                  Sign in to load, edit, and sync your private graph.
                 </p>
-                <button type="button" id="google-login-btn" class="btn-green" style="background: #ffffff; color: #000; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px; padding: 10px;">
+                <button type="button" id="google-login-btn" class="google-button">
                   <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
                     <path d="M17.64 9.2045c0-.6381-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9086c1.7018-1.5668 2.6836-3.874 2.6836-6.615z" fill="#4285F4" />
                     <path d="M9 18c2.43 0 4.4673-.806 5.9564-2.1805l-2.9086-2.2581c-.8059.54-1.8368.859-3.0478.859-2.344 0-4.3282-1.5831-5.036-3.7104H.9574v2.3318C2.4382 15.9832 5.4818 18 9 18z" fill="#34A853" />
@@ -124,11 +131,11 @@
                   </svg>
                   Sign in with Google
                 </button>
-                <p id="auth-error" style="color: #f44336; font-size: 0.8rem; margin-top: 10px; display: none;"></p>
+                <p id="auth-error" class="status-error" style="display: none;"></p>
               </div>
               <div id="logged-in-container" style="display: none">
-                <p style="font-size: 0.85rem; color: var(--spotify-green); font-weight: bold;">✓ Logged in. You can edit the graph. Changes auto-save.</p>
-                <button type="button" id="fb-logout-btn" class="btn-outline" style="margin-top: 10px; padding: 10px">Logout</button>
+                <p class="status-good">Logged in. You can edit the graph. Changes auto-save.</p>
+                <button type="button" id="fb-logout-btn" class="btn-outline account-action">Logout</button>
                 <div id="danger-zone" class="danger-zone">
                   <button type="button" id="danger-toggle-btn" class="btn-subtle">Advanced Data Controls</button>
                   <div id="danger-zone-content" style="display: none">
@@ -141,20 +148,20 @@
               </div>
               <div class="account-info">
                 <h3>How It Works</h3>
-                <div class="info-grid">
-                  <div class="info-card">
+                <div class="journal-steps">
+                  <div class="journal-step">
                     <h3>1) Music Search</h3>
                     <p>Searches track metadata, artwork, and duration without connecting a streaming account.</p>
                   </div>
-                  <div class="info-card">
+                  <div class="journal-step">
                     <h3>2) Google Login</h3>
-                    <p>Needed to protect edits. Your graph is stored in Firebase under your account only.</p>
+                    <p>Needed to load and protect your journal. Your graph is stored in Firebase under your account only.</p>
                   </div>
-                  <div class="info-card">
+                  <div class="journal-step">
                     <h3>3) Add and Explore</h3>
                     <p>Add transitions, click songs to inspect paths, and search your saved graph.</p>
                   </div>
-                  <div class="info-card">
+                  <div class="journal-step">
                     <h3>4) Data Ownership</h3>
                     <p>Your graph auto-saves to cloud for your signed-in Google account. Sign out to lock editing.</p>
                   </div>
@@ -166,6 +173,11 @@
 
         <!-- Graph Container -->
         <main id="graph-container"></main>
+        <div id="graph-empty-state" class="graph-empty-state" hidden></div>
+        <div class="graph-zoom-controls" aria-label="Graph zoom controls">
+          <button type="button" class="graph-zoom-btn" id="graph-zoom-in" aria-label="Zoom in">+</button>
+          <button type="button" class="graph-zoom-btn" id="graph-zoom-out" aria-label="Zoom out">-</button>
+        </div>
       </main>
 
       <!-- Info Modal (for song/edge details) -->
@@ -181,41 +193,7 @@
         <div class="modal-backdrop"></div>
       </div>
 
-      <!-- First-time Visitor Modal -->
-      <div id="welcome-modal" class="modal">
-        <div class="modal-content modal-welcome">
-          <div class="modal-header">
-            <h2>Welcome to Track Transition Graph</h2>
-            <button class="modal-close" id="welcome-close-btn">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div class="info-grid">
-              <div class="info-card">
-                  <h3>1) Music Search</h3>
-                  <p>Searches track metadata (name, artist, artwork, and duration) without a streaming account.</p>
-              </div>
-              <div class="info-card">
-                <h3>2) Google Login</h3>
-                <p>Needed to protect edits. Your graph is stored in Firebase under your account only.</p>
-              </div>
-              <div class="info-card">
-                <h3>3) Add and Explore</h3>
-                <p>Add transitions, click songs to inspect incoming/outgoing paths, and search the graph.</p>
-              </div>
-              <div class="info-card">
-                <h3>4) Data Ownership</h3>
-                <p>Your graph auto-saves to cloud for your signed-in Google account. Sign out to lock editing.</p>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn-green" id="welcome-close-btn-2">Get Started</button>
-          </div>
-        </div>
-        <div class="modal-backdrop"></div>
-      </div>
-
-      <button type="button" id="mobile-graph-exit">Back to Tabs</button>
+      <button type="button" id="mobile-graph-exit">Show Card</button>
     </div>
 
     <script src="app.js"></script>

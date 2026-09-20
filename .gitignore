@@ -2,3 +2,7 @@
 .wrangler/
 .dev.vars
 .vscode/
+.claude/
+.codex/
+.impeccable/
+node_modules/

@@ -5,6 +5,7 @@ const SONG_TRANSITION_TO_REMOVE = { from: "circus", to: "212" };
 let isApplyingFirebaseSnapshot = false;
 let activeGraphRef = null;
 let activeGraphValueHandler = null;
+let graphAccessState = "loading";
 
 const MAX_SCREENSHOT_SIZE_BYTES = 2 * 1024 * 1024;
 
@@ -39,17 +40,18 @@ document.addEventListener("DOMContentLoaded", () => {
   // Instead of GitHub logic, we now just start empty and wait for Firebase Realtime DB.
   let graphData = { nodes: [], edges: [] };
   initGraph(graphData);
+  updateGraphEmptyState();
   bindGraphResizeHandlers();
 
   setupEvents();
   setupAutocomplete("node1");
   setupAutocomplete("node2");
   setupGraphSearch();
+  setupGraphZoomControls();
 
   // NEW: Setup UI improvements
   setupTabNavigation();
   setupMobileViewControls();
-  setupWelcomeModal();
   setupDropdownCloseOnClickOutside();
   updateShowDetailsForModal();
   setupInfoModalDismissHandlers();
@@ -57,6 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (typeof firebase !== "undefined" && firebase.apps.length > 0) {
     setupFirebase();
   } else {
+    setGraphAccessState("signedOut");
     console.warn(
       "Firebase is not configured yet. Make sure to put your real config in app.js!",
     );
@@ -72,6 +75,45 @@ function requestGraphResize(shouldFit = false) {
       cy.fit(undefined, 20);
     }
   });
+}
+
+function setGraphAccessState(nextState) {
+  graphAccessState = nextState;
+  updateGraphEmptyState();
+}
+
+function updateGraphEmptyState() {
+  const emptyState = document.getElementById("graph-empty-state");
+  if (!emptyState || !cy) return;
+
+  const hasGraph = cy.nodes().length > 0;
+  document.body.classList.toggle("graph-is-empty", !hasGraph);
+  emptyState.hidden = hasGraph;
+
+  if (hasGraph) {
+    emptyState.innerHTML = "";
+    return;
+  }
+
+  const messages = {
+    loading: {
+      title: "Loading Graph",
+      body: "Checking your account graph.",
+    },
+    signedOut: {
+      title: "Private Graph Locked",
+      body: "Sign in with Google to load your saved transitions.",
+    },
+    empty: {
+      title: "No Transitions Yet",
+      body: "Add a transition to start building your mix graph.",
+    },
+  };
+  const message = messages[graphAccessState] || messages.empty;
+  emptyState.innerHTML = `
+    <h2>${escapeHtml(message.title)}</h2>
+    <p>${escapeHtml(message.body)}</p>
+  `;
 }
 
 function bindGraphResizeHandlers() {
@@ -210,24 +252,25 @@ function getConnectionCountForTrack(trackLike) {
 function getGraphLayoutOptions(animate = true) {
   return {
     name: "cose",
-    padding: 60,
+    padding: 110,
     animate,
-    animationDuration: animate ? 550 : 0,
+    animationDuration: animate ? 650 : 0,
     randomize: false,
     fit: true,
-    nodeOverlap: 16,
-    componentSpacing: 90,
-    gravity: 1.15,
-    numIter: 2000,
-    initialTemp: 900,
-    coolingFactor: 0.98,
-    minTemp: 1,
-    nodeRepulsion: (node) => 180000 + node.connectedEdges().length * 32000,
+    nodeOverlap: 26,
+    componentSpacing: 150,
+    nestingFactor: 1.1,
+    gravity: 0.42,
+    numIter: 3600,
+    initialTemp: 1200,
+    coolingFactor: 0.985,
+    minTemp: 0.6,
+    nodeRepulsion: (node) => 520000 + node.connectedEdges().length * 85000,
     idealEdgeLength: (edge) => {
       const sourceConnections = edge.source().connectedEdges().length;
       const targetConnections = edge.target().connectedEdges().length;
       const maxConnections = Math.max(sourceConnections, targetConnections);
-      return 125 + Math.min(95, maxConnections * 4);
+      return 190 + Math.min(150, maxConnections * 8);
     },
   };
 }
@@ -236,39 +279,9 @@ function runGraphLayout(animate = true) {
   if (!cy) return;
   const layout = cy.layout(getGraphLayoutOptions(animate));
   layout.one("layoutstop", () => {
-    placeClarityAtTop(animate);
+    requestGraphResize(false);
   });
   layout.run();
-}
-
-function getClarityNode() {
-  if (!cy) return null;
-  const matches = cy
-    .nodes()
-    .filter((node) => normalizeSongText(node.data("name")) === "clarity");
-  if (!matches || matches.length === 0) return null;
-  return matches[0];
-}
-
-function placeClarityAtTop(animate = true) {
-  if (!cy || cy.nodes().length === 0) return;
-  const clarityNode = getClarityNode();
-  if (!clarityNode || clarityNode.empty()) return;
-
-  const bounds = cy.nodes().boundingBox();
-  const targetPosition = {
-    x: (bounds.x1 + bounds.x2) / 2,
-    y: bounds.y1 + clarityNode.outerHeight() / 2 + 18,
-  };
-
-  if (animate) {
-    clarityNode.animate(
-      { position: targetPosition },
-      { duration: 280, easing: "ease-out-cubic" },
-    );
-  } else {
-    clarityNode.position(targetPosition);
-  }
 }
 
 function escapeHtml(value) {
@@ -307,11 +320,19 @@ function buildConnectionListHtml(items) {
   return items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
 }
 
+function updateGraphSelectionControls(hasSelection) {
+  const clearBtn = document.getElementById("graph-search-clear-btn");
+  if (clearBtn) {
+    clearBtn.classList.toggle("hidden", !hasSelection);
+  }
+}
+
 function clearGraphHighlight() {
   if (!cy) return;
   cy.elements().removeClass(
     "is-dimmed is-selected is-incoming is-outgoing is-neighbor-in is-neighbor-out",
   );
+  updateGraphSelectionControls(false);
 }
 
 function clearSearchSidebarSelection() {
@@ -328,6 +349,7 @@ function clearSearchSidebarSelection() {
   if (detailsContent) {
     detailsContent.innerHTML = "";
   }
+  updateGraphSelectionControls(false);
 }
 
 function isEditorSignedIn() {
@@ -366,6 +388,7 @@ function deleteTransition(edgeId) {
   });
 
   applyGraphQualityFixes();
+  setGraphAccessState(cy.nodes().length > 0 ? "loaded" : "empty");
   runGraphLayout(true);
   saveGraphToFirebase();
   showDetails('<p style="color:#b3b3b3;">Transition deleted.</p>');
@@ -388,6 +411,7 @@ function highlightNodeConnections(node) {
   outgoingEdges.removeClass("is-dimmed").addClass("is-outgoing");
   incomingNodes.removeClass("is-dimmed").addClass("is-neighbor-in");
   outgoingNodes.removeClass("is-dimmed").addClass("is-neighbor-out");
+  updateGraphSelectionControls(true);
 }
 
 function showNodeDetails(node) {
@@ -422,6 +446,39 @@ function focusNodeAndNeighborhood(node, zoomPadding = 90) {
   );
 }
 
+function zoomGraphBy(factor) {
+  if (!cy) return;
+  const nextZoom = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), cy.zoom() * factor));
+  cy.animate(
+    {
+      zoom: {
+        level: nextZoom,
+        renderedPosition: {
+          x: cy.width() / 2,
+          y: cy.height() / 2,
+        },
+      },
+    },
+    {
+      duration: 160,
+      easing: "ease-out-cubic",
+    },
+  );
+}
+
+function setupGraphZoomControls() {
+  const zoomInBtn = document.getElementById("graph-zoom-in");
+  const zoomOutBtn = document.getElementById("graph-zoom-out");
+
+  if (zoomInBtn) {
+    zoomInBtn.addEventListener("click", () => zoomGraphBy(1.22));
+  }
+
+  if (zoomOutBtn) {
+    zoomOutBtn.addEventListener("click", () => zoomGraphBy(1 / 1.22));
+  }
+}
+
 function initGraph(data) {
   cy = cytoscape({
     container: document.getElementById("graph-container"),
@@ -433,22 +490,24 @@ function initGraph(data) {
       {
         selector: "node",
         style: {
-          "background-color": "#282828",
+          "background-color": "#fff7e8",
           "background-image": "data(cover)",
           "background-fit": "cover",
           width: "mapData(connectionCount, 0, 12, 58, 84)",
           height: "mapData(connectionCount, 0, 12, 58, 84)",
           label: "data(name)",
-          color: "#fff",
+          color: "#fff7e8",
           "text-valign": "bottom",
-          "text-margin-y": 8,
+          "text-margin-y": 10,
           "text-max-width": "140px",
           "text-wrap": "wrap",
           "font-size": "12px",
-          "text-outline-color": "#121212",
-          "text-outline-width": 2,
+          "font-family": "IBM Plex Sans",
+          "font-weight": 700,
+          "text-outline-color": "#10151a",
+          "text-outline-width": 3,
           "border-width": "mapData(connectionCount, 0, 12, 2, 5)",
-          "border-color": "#1db954",
+          "border-color": "#fff7e8",
           "overlay-padding": "6px",
           opacity: 0.97,
         },
@@ -457,18 +516,20 @@ function initGraph(data) {
         selector: "edge",
         style: {
           width: 5,
-          "line-color": "#3f8f67",
-          "target-arrow-color": "#1db954",
+          "line-color": "#c57b4a",
+          "target-arrow-color": "#2ed760",
           "target-arrow-shape": "triangle",
           "arrow-scale": 1.8,
           "curve-style": "bezier",
-          "control-point-step-size": 42,
-          "taxi-turn": "24px",
+          "control-point-step-size": 28,
+          "source-distance-from-node": 8,
           "target-distance-from-node": 6,
           label: "data(hasScreenshot)",
-          color: "#1db954",
+          color: "#ffc844",
           "font-size": "13px",
-          "text-background-color": "#181818",
+          "font-family": "IBM Plex Sans",
+          "font-weight": 700,
+          "text-background-color": "#10151a",
           "text-background-opacity": 0.9,
           "text-background-padding": "4px",
           "text-background-shape": "roundrectangle",
@@ -487,7 +548,7 @@ function initGraph(data) {
       {
         selector: "node.is-selected",
         style: {
-          "border-color": "#ffffff",
+          "border-color": "#2ed760",
           "border-width": 6,
           "z-index": 999,
           opacity: 1,
@@ -496,7 +557,7 @@ function initGraph(data) {
       {
         selector: "node.is-neighbor-in",
         style: {
-          "border-color": "#5cc8ff",
+          "border-color": "#49a7ff",
           "border-width": 5,
           opacity: 1,
         },
@@ -504,7 +565,7 @@ function initGraph(data) {
       {
         selector: "node.is-neighbor-out",
         style: {
-          "border-color": "#f8c537",
+          "border-color": "#ffc844",
           "border-width": 5,
           opacity: 1,
         },
@@ -512,8 +573,8 @@ function initGraph(data) {
       {
         selector: "edge.is-incoming",
         style: {
-          "line-color": "#5cc8ff",
-          "target-arrow-color": "#5cc8ff",
+          "line-color": "#49a7ff",
+          "target-arrow-color": "#49a7ff",
           width: 7,
           opacity: 0.98,
         },
@@ -521,8 +582,8 @@ function initGraph(data) {
       {
         selector: "edge.is-outgoing",
         style: {
-          "line-color": "#f8c537",
-          "target-arrow-color": "#f8c537",
+          "line-color": "#ffc844",
+          "target-arrow-color": "#ffc844",
           width: 7,
           opacity: 0.98,
         },
@@ -579,7 +640,7 @@ function initGraph(data) {
   });
 
   cy.one("layoutstop", () => {
-    placeClarityAtTop(true);
+    requestGraphResize(false);
   });
 
   requestGraphResize(true);
@@ -599,16 +660,8 @@ function setupEvents() {
   const fileInput = document.getElementById("screenshot-file");
   const fileLabel = document.getElementById("file-preview-name");
   const detailsContent = document.getElementById("details-content");
-  const detailsClearBtn = document.getElementById("details-clear-highlight-btn");
 
   fileLabel.addEventListener("click", () => fileInput.click());
-
-  if (detailsClearBtn) {
-    detailsClearBtn.addEventListener("click", () => {
-      clearGraphHighlight();
-      requestGraphResize(false);
-    });
-  }
 
   if (detailsContent) {
     detailsContent.addEventListener("click", (event) => {
@@ -744,6 +797,7 @@ function setupEvents() {
       });
 
       applyGraphQualityFixes();
+      setGraphAccessState("loaded");
 
       runGraphLayout(true);
 
@@ -795,6 +849,7 @@ function setupFirebase() {
   const clearGraph = () => {
     if (!cy) return;
     cy.elements().remove();
+    setGraphAccessState("signedOut");
     requestGraphResize(false);
   };
 
@@ -811,6 +866,7 @@ function setupFirebase() {
       return;
     }
 
+    setGraphAccessState("loading");
     const userGraphPath = `graphs/${user.uid}/data`;
     activeGraphRef = firebase.database().ref(userGraphPath);
 
@@ -828,6 +884,7 @@ function setupFirebase() {
         }
 
         const graphWasFixed = applyGraphQualityFixes();
+        setGraphAccessState(cy.nodes().length > 0 ? "loaded" : "empty");
         runGraphLayout(false);
         isApplyingFirebaseSnapshot = false;
 
@@ -838,6 +895,7 @@ function setupFirebase() {
       }
 
       isApplyingFirebaseSnapshot = false;
+      setGraphAccessState("empty");
       requestGraphResize(false);
     };
 
@@ -1369,6 +1427,7 @@ function setupGraphSearch() {
     if (detailsContent) {
       detailsContent.innerHTML = "";
     }
+    updateGraphSelectionControls(false);
     requestGraphResize(false);
   });
 }
@@ -1393,6 +1452,44 @@ function updateResponsiveTabLabels() {
       btn.textContent = nextLabel;
     }
   });
+
+  const graphToggleBtn = document.getElementById('mobile-graph-toggle');
+  if (graphToggleBtn) {
+    graphToggleBtn.textContent = isMobile ? 'Graph' : 'View Graph';
+  }
+}
+
+function setupMobileCardCollapse() {
+  document.querySelectorAll('.panel-collapse-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const panel = btn.closest('.panel');
+      if (panel) {
+        panel.classList.toggle('is-collapsed');
+        requestGraphResize(false);
+      }
+    });
+  });
+
+  // Tapping anywhere on a collapsed card header restores it
+  document.querySelectorAll('.panel').forEach((panel) => {
+    panel.addEventListener('click', (e) => {
+      if (panel.classList.contains('is-collapsed') && !e.target.closest('button, input, a')) {
+        panel.classList.remove('is-collapsed');
+        requestGraphResize(false);
+      }
+    });
+  });
+
+  // Switching tabs automatically restores panel to open
+  document.querySelectorAll('.nav-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.panel.is-collapsed').forEach((p) => {
+        p.classList.remove('is-collapsed');
+      });
+      requestGraphResize(false);
+    });
+  });
 }
 
 function setGraphFocusMode(enabled) {
@@ -1412,9 +1509,15 @@ function setupMobileViewControls() {
   const graphExitBtn = document.getElementById('mobile-graph-exit');
 
   updateResponsiveTabLabels();
+  setupMobileCardCollapse();
 
   if (graphToggleBtn) {
     graphToggleBtn.addEventListener('click', () => {
+      if (cy && cy.nodes().length === 0 && !isEditorSignedIn()) {
+        setGraphFocusMode(false);
+        switchToTab("account");
+        return;
+      }
       setGraphFocusMode(true);
     });
   }
@@ -1534,14 +1637,31 @@ function showEdgeModal(edge) {
 
   if (!modal || !content || !title || !body || !footer) return;
 
-  const sourceName = escapeHtml(
-    cy.getElementById(edge.data('source')).data('name') || 'Unknown',
-  );
-  const targetName = escapeHtml(
-    cy.getElementById(edge.data('target')).data('name') || 'Unknown',
-  );
+  const sourceNode = cy.getElementById(edge.data('source'));
+  const targetNode = cy.getElementById(edge.data('target'));
   const screenshot = edge.data('screenshot');
   const canDelete = isEditorSignedIn();
+
+  const buildTransitionTrackCard = (role, node) => {
+    const data = node && !node.empty() ? node.data() : {};
+    const name = data.name || 'Unknown';
+    const artist = data.artist || '';
+    const cover = getSafeImageUrl(data.cover);
+    const art = cover
+      ? `<img class="transition-track-cover" src="${escapeHtml(cover)}" alt="">`
+      : '<span class="transition-track-cover transition-track-cover-empty" aria-hidden="true"></span>';
+
+    return `
+      <div class="transition-track-card">
+        ${art}
+        <div class="transition-track-copy">
+          <span class="transition-track-label">${role}</span>
+          <span class="transition-track-name">${escapeHtml(name)}</span>
+          ${artist ? `<span class="transition-track-artist">${escapeHtml(artist)}</span>` : ''}
+        </div>
+      </div>
+    `;
+  };
 
   content.classList.add('edge-modal');
   title.textContent = 'Transition';
@@ -1552,15 +1672,9 @@ function showEdgeModal(edge) {
   body.innerHTML = `
     <h3 class="transition-modal-title">Transition</h3>
     <div class="transition-flow">
-      <div class="transition-track-card">
-        <span class="transition-track-label">From</span>
-        <p class="transition-track-name">${sourceName}</p>
-      </div>
+      ${buildTransitionTrackCard('From', sourceNode)}
       <div class="transition-flow-connector" aria-hidden="true"></div>
-      <div class="transition-track-card">
-        <span class="transition-track-label">To</span>
-        <p class="transition-track-name">${targetName}</p>
-      </div>
+      ${buildTransitionTrackCard('To', targetNode)}
     </div>
     ${screenshot ? `<img class="transition-shot" src="${escapeHtml(screenshot)}" alt="Transition Screenshot">` : '<p class="transition-meta">No screenshot attached.</p>'}
   `;
@@ -1589,6 +1703,7 @@ function buildNodeListFromCollection(nodeCollection) {
       id: node.id(),
       name: node.data('name') || 'Unknown',
       artist: node.data('artist') || '',
+      cover: node.data('cover') || '',
     });
   });
   return Array.from(uniqueById.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -1601,8 +1716,13 @@ function buildRelatedSongListHtml(items) {
 
   return items
     .map(
-      (item) =>
-        `<li><button type="button" class="related-song-btn" data-related-node-id="${escapeHtml(item.id)}">${escapeHtml(item.name)}${item.artist ? ` - ${escapeHtml(item.artist)}` : ''}</button></li>`,
+      (item) => {
+        const cover = getSafeImageUrl(item.cover);
+        const art = cover
+          ? `<img class="related-song-cover" src="${escapeHtml(cover)}" alt="">`
+          : '<span class="related-song-cover related-song-cover-empty" aria-hidden="true"></span>';
+        return `<li><button type="button" class="related-song-btn" data-related-node-id="${escapeHtml(item.id)}">${art}<span class="related-song-copy"><span class="related-song-name">${escapeHtml(item.name)}</span>${item.artist ? `<span class="related-song-artist">${escapeHtml(item.artist)}</span>` : ''}</span></button></li>`;
+      },
     )
     .join('');
 }
@@ -1611,6 +1731,9 @@ function openSongInSearchTab(node) {
   if (!node || node.empty()) return;
 
   switchToTab('search');
+  document.querySelectorAll('.panel.is-collapsed').forEach((p) => {
+    p.classList.remove('is-collapsed');
+  });
   const data = node.data();
   const searchInput = document.getElementById('graph-search-input');
   if (searchInput) {
@@ -1637,33 +1760,6 @@ function updateShowDetailsForModal() {
   cy.on('tap', 'edge', function (evt) {
     showEdgeModal(evt.target);
   });
-}
-
-// FIRST-TIME VISITOR POPUP
-function setupWelcomeModal() {
-  const hasVisitedBefore = localStorage.getItem('spotify_mix_visited');
-  const welcomeModal = document.getElementById('welcome-modal');
-  
-  if (!hasVisitedBefore && welcomeModal) {
-    showModal(welcomeModal);
-    localStorage.setItem('spotify_mix_visited', 'true');
-  }
-  
-  // Close button handlers
-  const closeBtn = document.getElementById('welcome-close-btn');
-  const getStartedBtn = document.getElementById('welcome-close-btn-2');
-  
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      hideModal(welcomeModal);
-    });
-  }
-  
-  if (getStartedBtn) {
-    getStartedBtn.addEventListener('click', () => {
-      hideModal(welcomeModal);
-    });
-  }
 }
 
 // CLICK-OUTSIDE DROPDOWN CLOSE
