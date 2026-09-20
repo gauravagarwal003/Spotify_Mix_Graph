@@ -462,7 +462,6 @@ input:focus-visible {
 }
 
 .input-group label,
-.danger-label,
 .transition-track-label {
     color: var(--ink);
     font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
@@ -802,27 +801,6 @@ button:active {
     margin-top: 10px;
 }
 
-.account-actions-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.account-actions-row .account-action {
-    flex: 0 0 auto;
-    margin-top: 0 !important;
-}
-
-.account-actions-row .btn-subtle {
-    flex: 1;
-    margin-top: 0 !important;
-    white-space: nowrap;
-    text-align: center;
-    font-size: 0.88rem;
-    padding: 9px 10px;
-}
-
 .status-good,
 .status-error {
     position: relative;
@@ -840,29 +818,6 @@ button:active {
     margin-top: 10px;
     background: #ffe0d6;
     color: #742016;
-}
-
-.danger-zone {
-    position: relative;
-    z-index: 1;
-}
-
-#danger-zone-content {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 2px solid rgba(23, 20, 15, 0.22);
-}
-
-.danger-help {
-    margin-top: 10px;
-    margin-bottom: 8px;
-    color: #742016;
-    font-size: 0.82rem;
-}
-
-#reset-confirm-input {
-    font-size: 0.9rem;
-    padding: 10px;
 }
 
 .modal {
@@ -1497,7 +1452,6 @@ button:active {
     }
 
     .input-group label,
-    .danger-label,
     .transition-track-label {
         font-size: 0.72rem;
         font-weight: 600;
@@ -1506,8 +1460,7 @@ button:active {
         color: var(--ink-soft);
     }
 
-    .input-group input[type="text"],
-    .danger-zone input[type="text"] {
+    .input-group input[type="text"] {
         padding: 4px 8px;
         min-height: 28px;
         font-size: 0.82rem;
@@ -1524,9 +1477,9 @@ button:active {
     .file-preview-btn {
         flex: 1;
         min-width: 0;
-        padding: 5px 8px;
+        padding: 5px 6px;
         min-height: 28px;
-        font-size: 0.76rem;
+        font-size: 0.74rem;
         border-radius: 5px;
     }
 
@@ -1538,23 +1491,8 @@ button:active {
         margin-top: 0 !important;
     }
 
-    .account-actions-row {
-        display: flex;
-        align-items: center;
-        gap: 5px;
+    .account-action {
         margin-top: 6px;
-    }
-
-    .account-actions-row .account-action {
-        padding: 5px 10px;
-        min-height: 28px;
-        font-size: 0.78rem;
-    }
-
-    .account-actions-row .btn-subtle {
-        padding: 5px 8px;
-        min-height: 28px;
-        font-size: 0.76rem;
     }
 
     .btn-green,

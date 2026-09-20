@@ -711,7 +711,7 @@ function setupEvents() {
     });
   }
 
-  const DEFAULT_SCREENSHOT_LABEL = "Screenshot (Opt)";
+  const DEFAULT_SCREENSHOT_LABEL = "Screenshot (Optional)";
 
   fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
@@ -931,30 +931,12 @@ function setupFirebase() {
   const mainPanel = document.getElementById("main-panel");
   const loginForm = document.getElementById("login-form-container");
   const loggedInUi = document.getElementById("logged-in-container");
-  const dangerToggleBtn = document.getElementById("danger-toggle-btn");
-  const dangerZoneContent = document.getElementById("danger-zone-content");
-  const resetConfirmInput = document.getElementById("reset-confirm-input");
-  const resetGraphBtn = document.getElementById("reset-graph-btn");
-
-  if (dangerToggleBtn && dangerZoneContent) {
-    dangerToggleBtn.addEventListener("click", () => {
-      const willShow = dangerZoneContent.style.display === "none";
-      dangerZoneContent.style.display = willShow ? "block" : "none";
-    });
-  }
-
-  if (resetConfirmInput && resetGraphBtn) {
-    resetConfirmInput.addEventListener("input", () => {
-      const isReady = resetConfirmInput.value.trim().toUpperCase() === "RESET";
-      resetGraphBtn.disabled = !isReady;
-    });
-  }
 
   firebase.auth().onAuthStateChanged((user) => {
     detachGraphListener();
 
     if (user) {
-        mainPanel.style.display = "block";
+      mainPanel.style.display = "block";
       loginForm.style.display = "none";
       loggedInUi.style.display = "block";
       attachGraphListenerForUser(user);
@@ -967,16 +949,6 @@ function setupFirebase() {
       loggedInUi.style.display = "none";
       clearGraph();
       switchToTab("account");
-    }
-
-    if (resetConfirmInput) {
-      resetConfirmInput.value = "";
-    }
-    if (resetGraphBtn) {
-      resetGraphBtn.disabled = true;
-    }
-    if (dangerZoneContent) {
-      dangerZoneContent.style.display = "none";
     }
   });
 
@@ -1001,45 +973,6 @@ function setupFirebase() {
   // 4. Logout
   document.getElementById("fb-logout-btn").addEventListener("click", () => {
     firebase.auth().signOut();
-  });
-
-  // 5. Reset Graph
-  document.getElementById("reset-graph-btn").addEventListener("click", () => {
-    const user = firebase.auth().currentUser;
-    if (!user) {
-      alert("Please sign in first.");
-      return;
-    }
-
-    const typed = document
-      .getElementById("reset-confirm-input")
-      .value.trim()
-      .toUpperCase();
-    if (typed !== "RESET") {
-      alert("Type RESET in Advanced Data Controls first.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "Final warning: this permanently deletes your cloud graph for this account. Continue?",
-    );
-    if (!confirmed) return;
-
-    const userGraphPath = `graphs/${user.uid}/data`;
-    firebase
-      .database()
-      .ref(userGraphPath)
-      .remove()
-      .then(() => {
-        const confirmInput = document.getElementById("reset-confirm-input");
-        const button = document.getElementById("reset-graph-btn");
-        if (confirmInput) confirmInput.value = "";
-        if (button) button.disabled = true;
-      })
-      .catch((err) => {
-        console.error("Reset graph failed:", err);
-        alert("Could not reset graph. Please try again.");
-      });
   });
 }
 
