@@ -68,13 +68,11 @@
                     <input type="hidden" id="node2-data" />
                   </div>
 
-                  <div class="input-group">
-                    <label>Transition Screenshot (Optional)</label>
+                  <div class="form-actions-row">
                     <input type="file" id="screenshot-file" accept="image/*" />
-                    <div class="file-preview" id="file-preview-name">No file selected</div>
+                    <button type="button" class="btn-outline file-preview-btn" id="file-preview-name" title="Add screenshot (optional)">Screenshot (Opt)</button>
+                    <button type="submit" class="btn-green">Add Transition</button>
                   </div>
-
-                  <button type="submit" class="btn-green">Add Transition</button>
                 </form>
               </div>
             </div>
@@ -134,10 +132,12 @@
                 <p id="auth-error" class="status-error" style="display: none;"></p>
               </div>
               <div id="logged-in-container" style="display: none">
-                <p class="status-good">Logged in. You can edit the graph. Changes auto-save.</p>
-                <button type="button" id="fb-logout-btn" class="btn-outline account-action">Logout</button>
-                <div id="danger-zone" class="danger-zone">
+                <p class="status-good">Logged in. Changes auto-save.</p>
+                <div class="account-actions-row">
+                  <button type="button" id="fb-logout-btn" class="btn-outline account-action">Logout</button>
                   <button type="button" id="danger-toggle-btn" class="btn-subtle">Advanced Data Controls</button>
+                </div>
+                <div id="danger-zone" class="danger-zone">
                   <div id="danger-zone-content" style="display: none">
                     <p class="danger-help">Reset permanently deletes your current account graph.</p>
                     <label for="reset-confirm-input" class="danger-label">Type RESET to enable:</label>

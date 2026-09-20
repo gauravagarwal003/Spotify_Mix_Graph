@@ -688,12 +688,14 @@ function setupEvents() {
     });
   }
 
+  const DEFAULT_SCREENSHOT_LABEL = "Screenshot (Opt)";
+
   fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (file) {
       if (!file.type.startsWith("image/") || file.size > MAX_SCREENSHOT_SIZE_BYTES) {
         fileInput.value = "";
-        fileLabel.textContent = "No file selected";
+        fileLabel.textContent = DEFAULT_SCREENSHOT_LABEL;
         currentScreenshotBase64 = null;
         alert("Choose an image smaller than 2 MB.");
         return;
@@ -705,7 +707,7 @@ function setupEvents() {
       };
       reader.readAsDataURL(file);
     } else {
-      fileLabel.textContent = "No file selected";
+      fileLabel.textContent = DEFAULT_SCREENSHOT_LABEL;
       currentScreenshotBase64 = null;
     }
   });
@@ -810,7 +812,7 @@ function setupEvents() {
       document.getElementById("node1-data").value = "";
       document.getElementById("node2-data").value = "";
       fileInput.value = "";
-      fileLabel.textContent = "No file selected";
+      fileLabel.textContent = DEFAULT_SCREENSHOT_LABEL;
       currentScreenshotBase64 = null;
     } else {
       alert("This transition already exists!");
